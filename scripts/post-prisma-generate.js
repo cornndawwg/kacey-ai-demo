@@ -14,26 +14,41 @@ console.log('Generated path:', generatedPath);
 console.log('index.js exists:', fs.existsSync(indexJsPath));
 console.log('default.js exists:', fs.existsSync(defaultJsPath));
 
-// Check if default.js exists, if not create it
-if (!fs.existsSync(defaultJsPath)) {
-  // Create default.js that re-exports everything from index.js
-  const defaultContent = `// Auto-generated file for @prisma/client compatibility with custom output path
+// Always ensure default.js exists (recreate if needed)
+if (!fs.existsSync(generatedPath)) {
+  console.error('❌ Generated Prisma client path does not exist:', generatedPath);
+  process.exit(1);
+}
+
+// List all files in the generated directory for debugging
+const files = fs.readdirSync(generatedPath);
+console.log('Files in generated client:', files.slice(0, 10));
+
+// Find the main entry file (could be index.js, index.mjs, or something else)
+const entryFile = files.find(f => f.startsWith('index.') && (f.endsWith('.js') || f.endsWith('.mjs')));
+console.log('Entry file found:', entryFile);
+
+if (!entryFile) {
+  console.error('❌ No entry file (index.js or index.mjs) found in generated client');
+  process.exit(1);
+}
+
+// Create default.js that re-exports from the entry file
+const entryName = entryFile.replace(/\.(js|mjs)$/, '');
+const defaultContent = `// Auto-generated file for @prisma/client compatibility with custom output path
 // This file allows @prisma/client/default.js to require('.prisma/client/default')
-module.exports = require('./index');
+module.exports = require('./${entryName}');
 `;
-  
-  fs.writeFileSync(defaultJsPath, defaultContent);
-  console.log('✅ Created default.js');
-  
-  // Also create default.d.ts if index.d.ts exists
-  if (fs.existsSync(indexDtsPath)) {
-    const defaultDtsContent = `// Auto-generated type definitions
+
+fs.writeFileSync(defaultJsPath, defaultContent);
+console.log('✅ Created default.js that re-exports from', entryFile);
+
+// Also create default.d.ts if index.d.ts exists
+if (fs.existsSync(indexDtsPath)) {
+  const defaultDtsContent = `// Auto-generated type definitions
 export * from './index';
 `;
-    fs.writeFileSync(path.resolve(generatedPath, 'default.d.ts'), defaultDtsContent);
-    console.log('✅ Created default.d.ts');
-  }
-} else {
-  console.log('✅ default.js already exists');
+  fs.writeFileSync(path.resolve(generatedPath, 'default.d.ts'), defaultDtsContent);
+  console.log('✅ Created default.d.ts');
 }
 
