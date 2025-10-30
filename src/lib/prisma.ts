@@ -1,5 +1,6 @@
-﻿// Import PrismaClient from generated location
-// @ts-ignore - TypeScript path resolution for generated Prisma client
+﻿// Import PrismaClient from generated location (Railway requires custom output path)
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error - TypeScript module resolution for custom Prisma output path
 import { PrismaClient } from '../../node_modules/.prisma/client';
 
 const globalForPrisma = globalThis as unknown as {
