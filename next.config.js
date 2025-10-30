@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['pdf-parse', 'mammoth', 'xlsx', 'cheerio'],
+  serverExternalPackages: ['pdf-parse', 'mammoth', 'xlsx', 'cheerio', '@prisma/client', '.prisma/client'],
   webpack: (config) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,
