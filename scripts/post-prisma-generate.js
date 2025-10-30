@@ -24,29 +24,36 @@ if (!fs.existsSync(generatedPath)) {
 const files = fs.readdirSync(generatedPath);
 console.log('Files in generated client:', files.slice(0, 10));
 
-// Find the main entry file (could be index.js, index.mjs, or something else)
-const entryFile = files.find(f => f.startsWith('index.') && (f.endsWith('.js') || f.endsWith('.mjs')));
+// Prisma generates client.js (or client.ts compiled to JS) as the entry point
+// Find the main entry file - Prisma uses client.js/client.ts, not index.js
+const entryFile = files.find(f => f === 'client.js' || f === 'client.ts' || f === 'client.mjs');
 console.log('Entry file found:', entryFile);
 
-if (!entryFile) {
-  console.error('❌ No entry file (index.js or index.mjs) found in generated client');
-  process.exit(1);
+// If no compiled JS version, try to find the compiled version or use client.ts
+let entryPoint = 'client';
+if (entryFile) {
+  entryPoint = entryFile.replace(/\.(js|ts|mjs)$/, '');
+} else {
+  // Prisma generates client.ts, which gets compiled to client.js
+  // Use 'client' as the entry point (Node.js will resolve client.js or client)
+  entryPoint = 'client';
+  console.log('Using default entry point: client');
 }
 
-// Create default.js that re-exports from the entry file
-const entryName = entryFile.replace(/\.(js|mjs)$/, '');
+// Create default.js that re-exports from the client entry file
 const defaultContent = `// Auto-generated file for @prisma/client compatibility with custom output path
 // This file allows @prisma/client/default.js to require('.prisma/client/default')
-module.exports = require('./${entryName}');
+module.exports = require('./${entryPoint}');
 `;
 
 fs.writeFileSync(defaultJsPath, defaultContent);
-console.log('✅ Created default.js that re-exports from', entryFile);
+console.log('✅ Created default.js that re-exports from', entryPoint);
 
-// Also create default.d.ts if index.d.ts exists
-if (fs.existsSync(indexDtsPath)) {
+// Also create default.d.ts if client.ts exists
+const clientTsPath = path.resolve(generatedPath, 'client.ts');
+if (fs.existsSync(clientTsPath)) {
   const defaultDtsContent = `// Auto-generated type definitions
-export * from './index';
+export * from './client';
 `;
   fs.writeFileSync(path.resolve(generatedPath, 'default.d.ts'), defaultDtsContent);
   console.log('✅ Created default.d.ts');
