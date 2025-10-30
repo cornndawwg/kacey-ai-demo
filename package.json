@@ -11,7 +11,7 @@
     "postinstall": "prisma generate || true",
     "prisma:generate": "prisma generate",
     "build": "rm -rf node_modules/.prisma && prisma generate && next build --webpack",
-    "start": "next start",
+    "start": "prisma migrate deploy && next start",
     "lint": "eslint"
   },
   "dependencies": {
