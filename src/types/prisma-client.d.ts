@@ -1,12 +1,6 @@
-// Type declarations for Prisma client with custom output path
-// Map @prisma/client to generated location
-declare module '@prisma/client' {
-  export * from '../../node_modules/.prisma/client';
-}
-
-// Also declare the direct path module
+// Type declaration for Prisma client with custom output path
+// This makes TypeScript recognize PrismaClient when importing from the generated location
 declare module '../../node_modules/.prisma/client' {
-  export * from '@prisma/client/runtime/library';
-  export * from '.prisma/client';
+  // Re-export everything that Prisma generates
+  export * from '@prisma/client/runtime';
 }
-
