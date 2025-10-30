@@ -10,7 +10,7 @@
     "dev": "next dev --webpack",
     "postinstall": "prisma generate || true",
     "prisma:generate": "prisma generate",
-    "build": "rm -rf node_modules/.prisma && prisma generate && next build --webpack",
+    "build": "prisma generate && next build --webpack",
     "start": "prisma db push --skip-generate && next start",
     "lint": "eslint"
   },
