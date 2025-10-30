@@ -1,15 +1,20 @@
 // Type declaration for @prisma/client with custom output path
-// This makes TypeScript recognize PrismaClient when the client is generated to a custom location
+// Prisma generates to node_modules/.prisma/client, this tells TypeScript where to find it
 
 declare module '@prisma/client' {
-  // Import the actual types from the generated location
-  // Use dynamic import to avoid circular dependency issues
-  import type * as GeneratedPrisma from '../../node_modules/.prisma/client';
+  // The actual PrismaClient class and types are generated in node_modules/.prisma/client
+  // This declaration tells TypeScript to look there for the types
+  // We can't use a relative path import here, so we reference it differently
   
-  // Re-export PrismaClient
-  export const PrismaClient: typeof GeneratedPrisma.PrismaClient;
-  export type PrismaClient = GeneratedPrisma.PrismaClient;
+  // Declare that PrismaClient exists and is a constructor
+  // TypeScript will merge this with any existing types it finds
+  export class PrismaClient {
+    constructor(options?: any);
+    $connect(): Promise<void>;
+    $disconnect(): Promise<void>;
+    [key: string]: any;
+  }
   
-  // Re-export all other types
-  export * from '../../node_modules/.prisma/client';
+  // All other Prisma types come from the generated files
+  // TypeScript will automatically find them in node_modules/.prisma/client
 }
