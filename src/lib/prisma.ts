@@ -1,4 +1,6 @@
-﻿import { PrismaClient } from '@prisma/client';
+﻿// Import PrismaClient from generated location
+// @ts-ignore - TypeScript path resolution for generated Prisma client
+import { PrismaClient } from '../../node_modules/.prisma/client';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
