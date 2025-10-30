@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev --webpack",
-    "postinstall": "prisma generate",
+    "postinstall": "rm -rf node_modules/.prisma && prisma generate",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"
