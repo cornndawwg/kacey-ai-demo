@@ -8,11 +8,6 @@ const nextConfig = {
       path: false,
       os: false,
     };
-    // Map @prisma/client to generated client location
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@prisma/client': require('path').resolve(__dirname, 'node_modules/.prisma/client'),
-    };
     return config;
   },
 }
