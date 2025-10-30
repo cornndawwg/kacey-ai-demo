@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LoginCredentials } from '../../../types';
+import { LoginCredentials } from '@/types';
 
 export default function LoginPage() {
   const [credentials, setCredentials] = useState<LoginCredentials>({

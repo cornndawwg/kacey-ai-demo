@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { RegisterData } from '../../../types';
+import { RegisterData } from '@/types';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState<RegisterData>({
