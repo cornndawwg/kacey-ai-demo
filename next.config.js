@@ -14,8 +14,17 @@ const nextConfig = {
       ...config.resolve.alias,
       '@prisma/client': prismaClientPath,
       // Also alias .prisma/client (used by @prisma/client internal requires)
+      // The leading dot is important - this matches the require path in @prisma/client/default.js
       '.prisma/client': prismaClientPath,
+      // Also try without the leading dot
+      'prisma/client': prismaClientPath,
     };
+    
+    // Ensure .prisma/client can be resolved as a module
+    config.resolve.modules = [
+      ...(config.resolve.modules || []),
+      require('path').resolve(__dirname, 'node_modules'),
+    ];
     return config;
   },
 }
