@@ -1,6 +1,41 @@
-﻿import Link from 'next/link';
+﻿'use client';
+
+import Link from 'next/link';
+import { useState } from 'react';
 
 export default function HomePage() {
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState<string | null>(null);
+
+  const handleSeedDatabase = async () => {
+    setIsSeeding(true);
+    setSeedResult(null);
+    
+    try {
+      const response = await fetch('/api/seed-db', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSeedResult(`âœ… Database seeded successfully! You can now log in with:
+        
+Admin: admin@kacey-ai.com / admin123
+Employee: employee@kacey-ai.com / admin123`);
+      } else {
+        setSeedResult(`âŒ Error: ${data.error}`);
+      }
+    } catch (error) {
+      setSeedResult(`âŒ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -17,6 +52,30 @@ export default function HomePage() {
               AI-powered interviews and knowledge management. Ensure smooth transitions 
               when key personnel leave or retire.
             </p>
+            
+            {/* Database Setup Section */}
+            <div className="mb-8 p-6 bg-white rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                ðŸš€ First Time Setup
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Before you can sign in, you need to seed the database with demo data.
+              </p>
+              <button
+                onClick={handleSeedDatabase}
+                disabled={isSeeding}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSeeding ? 'Seeding Database...' : 'Seed Database'}
+              </button>
+              
+              {seedResult && (
+                <div className="mt-4 p-4 bg-gray-100 rounded-md text-sm text-left">
+                  <pre className="whitespace-pre-wrap">{seedResult}</pre>
+                </div>
+              )}
+            </div>
+
             <div className="space-x-4">
               <Link
                 href="/auth/login"
