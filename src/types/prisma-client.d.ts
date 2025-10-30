@@ -1,10 +1,12 @@
-// Type declaration for Prisma client generated at custom output path
-// This allows TypeScript to recognize imports from '../../node_modules/.prisma/client'
+// Type declaration for Prisma client with custom output path
+// Tells TypeScript that the module at this path exists and exports PrismaClient
+// The actual types are in the generated Prisma client files
 
 declare module '../../node_modules/.prisma/client' {
-  // Declare that PrismaClient exists (actual type comes from generated file)
-  export const PrismaClient: any;
+  import type { PrismaClient as BasePrismaClient } from '@prisma/client';
   
-  // Re-export all types (TypeScript will infer from actual generated files)
-  export * from '../../node_modules/.prisma/client/index';
+  export { BasePrismaClient as PrismaClient };
+  
+  // Also export all other Prisma types
+  export type PrismaClient = BasePrismaClient;
 }
