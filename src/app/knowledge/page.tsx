@@ -9,7 +9,9 @@ export default function KnowledgePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [artifacts, setArtifacts] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('all');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedArtifact, setSelectedArtifact] = useState<any | null>(null);
@@ -36,6 +38,7 @@ export default function KnowledgePage() {
       setUser(parsedUser);
       loadArtifacts();
       loadRoles();
+      loadDepartments();
     } catch (error) {
       console.error('Error parsing user data:', error);
       router.push('/auth/login');
@@ -80,14 +83,34 @@ export default function KnowledgePage() {
     }
   };
 
+  const loadDepartments = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/departments', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDepartments(data);
+      }
+    } catch (error) {
+      console.error('Error loading departments:', error);
+    }
+  };
+
   const filteredArtifacts = artifacts.filter(artifact => {
     const matchesRole = selectedRole === 'all' || artifact.roleId === selectedRole;
+    const matchesDepartment = selectedDepartment === 'all' || 
+      (artifact.role?.departmentId === selectedDepartment);
     const matchesType = selectedType === 'all' || artifact.type === selectedType;
     const matchesSearch = searchQuery === '' || 
       artifact.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       artifact.description?.toLowerCase().includes(searchQuery.toLowerCase());
     
-    return matchesRole && matchesType && matchesSearch;
+    return matchesRole && matchesDepartment && matchesType && matchesSearch;
   });
 
   const getTypeIcon = (type: string) => {
@@ -330,7 +353,7 @@ export default function KnowledgePage() {
 
           {/* Filters */}
           <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Search
@@ -345,19 +368,52 @@ export default function KnowledgePage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Department
+                </label>
+                <select
+                  value={selectedDepartment}
+                  onChange={(e) => {
+                    setSelectedDepartment(e.target.value);
+                    // Reset role filter when department changes
+                    if (e.target.value !== 'all') {
+                      setSelectedRole('all');
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="all">All Departments</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Role
                 </label>
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  disabled={selectedDepartment !== 'all'}
                 >
-                  <option value="all">All Roles</option>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.title}
-                    </option>
-                  ))}
+                  <option value="all">
+                    {selectedDepartment !== 'all' 
+                      ? 'All Roles in Department' 
+                      : 'All Roles'}
+                  </option>
+                  {roles
+                    .filter(role => 
+                      selectedDepartment === 'all' || 
+                      role.departmentId === selectedDepartment
+                    )
+                    .map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.title}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div>
@@ -442,18 +498,18 @@ export default function KnowledgePage() {
             ))}
           </div>
 
-          {filteredArtifacts.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-gray-400 text-6xl mb-4">📚</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No artifacts found</h3>
-              <p className="text-gray-600">
-                {searchQuery || selectedRole !== 'all' || selectedType !== 'all'
-                  ? 'Try adjusting your filters to see more results.'
-                  : 'Upload some documents to get started with the knowledge base.'
-                }
-              </p>
-            </div>
-          )}
+                  {filteredArtifacts.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="text-gray-400 text-6xl mb-4">📚</div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No artifacts found</h3>
+                      <p className="text-gray-600">
+                        {searchQuery || selectedRole !== 'all' || selectedDepartment !== 'all' || selectedType !== 'all'
+                          ? 'Try adjusting your filters to see more results.'
+                          : 'Upload some documents to get started with the knowledge base.'
+                        }
+                      </p>
+                    </div>
+                  )}
         </div>
       </div>
 

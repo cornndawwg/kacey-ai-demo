@@ -90,6 +90,11 @@ export const GET = withAuth(async (request: NextRequest, user: any) => {
         }
       },
       include: {
+        role: {
+          include: {
+            department: true
+          }
+        },
         knowledgeChunks: true
       },
       orderBy: {
