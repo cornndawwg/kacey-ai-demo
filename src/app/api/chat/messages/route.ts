@@ -51,15 +51,21 @@ export const POST = withAuth(async (request: NextRequest, user: any) => {
     });
 
     // Search for relevant context
-    const similarChunks = await searchSimilarChunks(message, 10, roleId);
-    const contextChunks = similarChunks.map(result => ({
-      content: result.chunk.content,
-      metadata: {
-        artifactTitle: result.chunk.metadata?.artifactTitle,
-        artifactType: result.chunk.metadata?.artifactType,
-        similarity: result.similarity
-      }
-    }));
+    // Use the roleId from the session if not provided
+    const searchRoleId = roleId || session.roleId;
+    const similarChunks = await searchSimilarChunks(message, 10, searchRoleId);
+    
+    // If no chunks found, still proceed but with empty context
+    const contextChunks = similarChunks.length > 0
+      ? similarChunks.map(result => ({
+          content: result.chunk.content,
+          metadata: {
+            artifactTitle: result.chunk.metadata?.artifactTitle || result.chunk.metadata?.artifactTitle,
+            artifactType: result.chunk.metadata?.artifactType || result.chunk.metadata?.artifactType,
+            similarity: result.similarity
+          }
+        }))
+      : []; // Empty context if no chunks found
 
     // Generate AI response
     const conversationHistory = session.chatMessages.map((msg: { role: string; content: string }) => ({

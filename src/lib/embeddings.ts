@@ -75,29 +75,59 @@ export async function searchSimilarChunks(
   try {
     // Generate embedding for the query
     const queryEmbedding = await generateEmbedding(query);
+    const embeddingJson = JSON.stringify(queryEmbedding);
 
-    // Search for similar chunks using pgvector
-    const results = await prisma.$queryRaw`
-      SELECT 
-        c.*,
-        e.vector,
-        1 - (e.vector <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
-      FROM knowledge_chunks c
-      JOIN embeddings e ON c.id = e."chunkId"
-      ${roleId ? prisma.$queryRaw`WHERE c."artifactId" IN (
-        SELECT id FROM knowledge_artifacts WHERE "roleId" = ${roleId}
-      )` : prisma.$queryRaw``}
-      ORDER BY e.vector <=> ${JSON.stringify(queryEmbedding)}::vector
-      LIMIT ${limit}
-    `;
+    // Build query based on whether roleId is provided
+    let results: any[];
+    
+    if (roleId) {
+      // Search with role filter
+      results = await prisma.$queryRaw`
+        SELECT 
+          c.*,
+          e.vector,
+          1 - (e.vector <=> ${embeddingJson}::vector) as similarity
+        FROM knowledge_chunks c
+        JOIN embeddings e ON c.id = e."chunkId"
+        JOIN knowledge_artifacts a ON c."artifactId" = a.id
+        WHERE a."roleId" = ${roleId}
+        ORDER BY e.vector <=> ${embeddingJson}::vector
+        LIMIT ${limit}
+      `;
+    } else {
+      // Search without role filter
+      results = await prisma.$queryRaw`
+        SELECT 
+          c.*,
+          e.vector,
+          1 - (e.vector <=> ${embeddingJson}::vector) as similarity
+        FROM knowledge_chunks c
+        JOIN embeddings e ON c.id = e."chunkId"
+        ORDER BY e.vector <=> ${embeddingJson}::vector
+        LIMIT ${limit}
+      `;
+    }
 
-    return results as Array<{
-      chunk: any;
-      similarity: number;
-    }>;
+    // Map results to the expected format
+    return results.map((row: any) => {
+      const { vector, similarity, ...chunk } = row;
+      return {
+        chunk,
+        similarity: parseFloat(similarity) || 0
+      };
+    });
 
   } catch (error) {
     console.error('Error searching similar chunks:', error);
+    console.error('Error details:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    
+    // Return empty array instead of throwing if no embeddings exist yet
+    if (error instanceof Error && error.message.includes('relation "embeddings" does not exist')) {
+      console.warn('Embeddings table does not exist yet, returning empty results');
+      return [];
+    }
+    
     throw new Error('Failed to search similar chunks');
   }
 }
