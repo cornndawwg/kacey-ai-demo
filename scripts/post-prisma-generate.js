@@ -46,15 +46,28 @@ if (fs.existsSync(packageJsonPath)) {
 // If index.js doesn't exist, we need to create it
 if (!indexJsExists && clientTsExists) {
   // Create index.js that re-exports from client.ts
-  // Since client.ts is TypeScript, we'll use require which will work if the file is transpiled
-  // But we need to check how @prisma/client expects to load it
+  // Since Prisma generates client.ts, we need to check if there's a way to load it
+  // Actually, Prisma might generate the client in a way that Next.js/webpack can handle
+  // But at runtime, we need JS. Let's check if there's a compiled version or use a workaround
+  // The key is that @prisma/client expects to load from .prisma/client, and it should handle TS
+  // But for now, let's just re-export from client - Next.js should handle the transpilation
   const indexContent = `// Auto-generated index.js for Prisma client
 // This file re-exports from client.ts, which is the generated Prisma client
+// Note: client.ts will be transpiled by Next.js/webpack at build time
 module.exports = require('./client');
 `;
   const indexJsPath = path.resolve(generatedPath, 'index.js');
   fs.writeFileSync(indexJsPath, indexContent);
   console.log('✅ Created index.js that re-exports from client');
+  
+  // Also create index.d.ts for TypeScript
+  if (fs.existsSync(path.resolve(generatedPath, 'client.ts'))) {
+    const indexDtsContent = `// Auto-generated index.d.ts for Prisma client
+export * from './client';
+`;
+    fs.writeFileSync(path.resolve(generatedPath, 'index.d.ts'), indexDtsContent);
+    console.log('✅ Created index.d.ts');
+  }
 }
 
 // Now create default.js that re-exports from index.js (or client.js if index doesn't exist)
