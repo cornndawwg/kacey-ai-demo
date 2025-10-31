@@ -24,30 +24,70 @@ if (!fs.existsSync(generatedPath)) {
 const files = fs.readdirSync(generatedPath);
 console.log('Files in generated client:', files.slice(0, 10));
 
-// Prisma generates client.js (or client.ts compiled to JS) as the entry point
-// Find the main entry file - Prisma uses client.js/client.ts, not index.js
-const entryFile = files.find(f => f === 'client.js' || f === 'client.ts' || f === 'client.mjs');
-console.log('Entry file found:', entryFile);
+// Prisma generates client.ts, but we need to check if there's a compiled JS version
+// Check for both client.js (compiled) and client.ts (source)
+const clientJsExists = files.includes('client.js');
+const clientTsExists = files.includes('client.ts');
+console.log('client.js exists:', clientJsExists);
+console.log('client.ts exists:', clientTsExists);
 
-// If no compiled JS version, try to find the compiled version or use client.ts
-let entryPoint = 'client';
-if (entryFile) {
-  entryPoint = entryFile.replace(/\.(js|ts|mjs)$/, '');
-} else {
-  // Prisma generates client.ts, which gets compiled to client.js
-  // Use 'client' as the entry point (Node.js will resolve client.js or client)
+let entryPoint;
+if (clientJsExists) {
+  // Use the compiled JS version if it exists
   entryPoint = 'client';
-  console.log('Using default entry point: client');
+  console.log('Using client.js as entry point');
+} else if (clientTsExists) {
+  // Prisma generates client.ts, but Node.js can't require .ts files directly
+  // We need to check what Prisma actually exports or create a wrapper
+  // Let's check the package.json in the generated client to see the main entry
+  const packageJsonPath = path.resolve(generatedPath, 'package.json');
+  if (fs.existsSync(packageJsonPath)) {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    entryPoint = packageJson.main || packageJson.exports?.['.'] || 'index';
+    console.log('Using package.json main:', entryPoint);
+  } else {
+    // Check if there's an index.js that might be the entry
+    if (files.includes('index.js')) {
+      entryPoint = 'index';
+      console.log('Using index.js as entry point');
+    } else {
+      // Fallback: try to read client.ts and create a wrapper that works
+      // Actually, Prisma's generated client.ts might export things we can use
+      // But at runtime, we need JS. Let's check what's in the package.json of @prisma/client
+      entryPoint = 'client';
+      console.log('Using client as entry point (will be resolved by bundler/transpiler)');
+    }
+  }
+} else {
+  console.error('❌ No client.js or client.ts found in generated client');
+  process.exit(1);
 }
 
 // Create default.js that re-exports from the client entry file
+// Since Prisma generates .ts files but we need JS at runtime, we'll use require
+// and let the TypeScript compiler/bundler handle it, or use dynamic require
 const defaultContent = `// Auto-generated file for @prisma/client compatibility with custom output path
 // This file allows @prisma/client/default.js to require('.prisma/client/default')
-module.exports = require('./${entryPoint}');
+
+// Try to require client.js first, then fall back to client
+let clientModule;
+try {
+  clientModule = require('./client.js');
+} catch (e) {
+  try {
+    // If client.js doesn't exist, try requiring without extension (for .ts files that are transpiled)
+    clientModule = require('./client');
+  } catch (e2) {
+    // Final fallback: try index
+    clientModule = require('./index');
+  }
+}
+
+module.exports = clientModule;
 `;
 
 fs.writeFileSync(defaultJsPath, defaultContent);
-console.log('✅ Created default.js that re-exports from', entryPoint);
+console.log('✅ Created default.js that tries to require from client with fallbacks');
 
 // Also create default.d.ts if client.ts exists
 const clientTsPath = path.resolve(generatedPath, 'client.ts');
