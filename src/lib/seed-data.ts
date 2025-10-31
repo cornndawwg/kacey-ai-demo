@@ -3,6 +3,28 @@ import { generateEmbeddingsForArtifact, generateEmbeddingsForChunk } from './emb
 
 export async function seedDemoData() {
   try {
+    // Verify knowledge_chunks table exists before proceeding
+    try {
+      const tableCheck = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'knowledge_chunks'
+        );
+      `;
+      const tableExists = (tableCheck as any[])[0]?.exists;
+      
+      if (!tableExists) {
+        console.error('ERROR: knowledge_chunks table does not exist! Cannot seed data.');
+        console.error('Please ensure the database schema has been pushed first.');
+        throw new Error('knowledge_chunks table does not exist. Run prisma db push first.');
+      }
+      console.log('Verified: knowledge_chunks table exists');
+    } catch (checkError) {
+      console.error('Error checking for knowledge_chunks table:', checkError);
+      throw checkError;
+    }
+
     // Create demo company
     const company = await prisma.company.upsert({
       where: { name: 'TechCorp Demo' },
