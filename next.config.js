@@ -17,28 +17,25 @@ const nextConfig = {
       '.prisma/client': prismaClientPath,
       // Also alias the specific default path that @prisma/client/default.js requires
       '.prisma/client/default': require('path').resolve(prismaClientPath, 'default'),
-      // Alias for client.ts -> client.js resolution
-      [require('path').resolve(prismaClientPath, 'client')]: require('path').resolve(prismaClientPath, 'client.ts'),
     };
     
-    // Add support for TypeScript files in the Prisma client directory
+    // Enable transpilation of TypeScript files in .prisma/client
+    // Next.js will use SWC to transpile these files
     config.module = config.module || {};
-    config.module.rules = config.module.rules || [];
+    const originalRules = config.module.rules || [];
     
-    // Ensure TypeScript files in .prisma/client are transpiled
-    config.module.rules.push({
-      test: /\.ts$/,
-      include: [prismaClientPath],
-      use: {
-        loader: 'ts-loader',
-        options: {
-          transpileOnly: true,
-          compilerOptions: {
-            module: 'commonjs',
-            target: 'es2020',
-          },
-        },
-      },
+    // Find the TypeScript rule and modify it to include .prisma/client
+    config.module.rules = originalRules.map((rule) => {
+      if (rule && rule.test && rule.test.toString().includes('tsx?') && rule.use && Array.isArray(rule.use)) {
+        return {
+          ...rule,
+          include: [
+            ...(rule.include || []),
+            prismaClientPath,
+          ],
+        };
+      }
+      return rule;
     });
     
     return config;
