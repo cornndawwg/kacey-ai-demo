@@ -157,7 +157,6 @@ export default function KnowledgePage() {
     const content = artifact.content;
     let blob: Blob;
     let filename: string;
-    let mimeType: string;
 
     switch (artifact.type) {
       case 'PDF':
