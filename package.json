@@ -12,8 +12,8 @@
     "prisma:generate": "prisma generate",
     "build": "prisma generate && next build",
     "start": "next start",
+    "start:with-db": "node scripts/start-with-db.js",
     "db:push": "prisma db push --skip-generate",
-    "start:with-db": "npm run db:push && npm run start",
     "lint": "eslint"
   },
   "dependencies": {
