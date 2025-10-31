@@ -112,39 +112,58 @@ if (clientTsExists && !clientJsExists) {
       throw new Error('TypeScript compiler not found');
     }
   } catch (error) {
-    console.log('⚠️  Could not compile client.ts, creating CommonJS wrapper');
-    // Fallback: create a wrapper that uses the internal models/index that Prisma generates
-    // Prisma generates client.ts but also generates compiled files in the internal directory
+    console.log('⚠️  Could not compile client.ts, checking for alternative entry points...');
+    
+    // Check what Prisma actually generated - maybe there's a compiled version somewhere
+    const internalPath = path.resolve(generatedPath, 'internal');
     const modelsPath = path.resolve(generatedPath, 'models');
+    
+    // List all files in the generated directory to see what's available
+    console.log('Checking for alternative entry points...');
+    const allFiles = fs.readdirSync(generatedPath);
+    console.log('All files in generated client:', allFiles);
+    
+    // Check if there's an index.d.ts or index.ts that we can use
+    const indexTsPath = path.resolve(generatedPath, 'index.ts');
+    const indexDtsPath = path.resolve(generatedPath, 'index.d.ts');
+    
+    // Try reading client.ts to understand its structure
+    let useModels = false;
     if (fs.existsSync(modelsPath)) {
-      // Try to use models/index.js or models/index.ts
-      const modelsIndexJs = path.resolve(modelsPath, 'index.js');
-      const modelsIndexTs = path.resolve(modelsPath, 'index.ts');
+      const modelsFiles = fs.readdirSync(modelsPath);
+      console.log('Files in models directory:', modelsFiles);
       
-      if (fs.existsSync(modelsIndexJs)) {
-        const clientJsContent = `// Auto-generated client.js wrapper for Prisma client
-// Re-exports from Prisma's generated models
+      // Check if there's an index file in models
+      const modelsIndexTs = path.resolve(modelsPath, 'index.ts');
+      if (fs.existsSync(modelsIndexTs)) {
+        // Try to read what client.ts actually exports
+        const clientTsContent = fs.readFileSync(clientTsPath, 'utf8');
+        console.log('client.ts first 500 chars:', clientTsContent.substring(0, 500));
+        
+        // Check if client.ts re-exports from models
+        if (clientTsContent.includes("from './models'") || clientTsContent.includes("from './models/index'")) {
+          useModels = true;
+          const clientJsContent = `// Auto-generated client.js wrapper for Prisma client
+// client.ts re-exports from models, so we'll do the same in CommonJS
 module.exports = require('./models/index');
 `;
-        fs.writeFileSync(clientJsPath, clientJsContent);
-        console.log('✅ Created client.js wrapper using models/index.js');
-      } else {
-        // Final fallback: simple re-export (webpack will need to handle this)
-        const clientJsContent = `// Auto-generated client.js wrapper for Prisma client
-// WARNING: This requires webpack to transpile client.ts during build
-// If you see errors, ensure webpack is configured to handle .ts files in .prisma/client
-module.exports = require('./client.ts');
-`;
-        fs.writeFileSync(clientJsPath, clientJsContent);
-        console.log('⚠️  Created fallback client.js wrapper (requires webpack transpilation)');
+          fs.writeFileSync(clientJsPath, clientJsContent);
+          console.log('✅ Created client.js wrapper using models/index.ts (will be transpiled by webpack)');
+        }
       }
-    } else {
-      // Last resort fallback
-      const clientJsContent = `// Auto-generated client.js wrapper
-module.exports = require('./client.ts');
+    }
+    
+    if (!useModels) {
+      // Last resort: create a wrapper that directly imports from client.ts
+      // But we need to make sure webpack handles the transpilation
+      // Since webpack alias maps .js to .ts, require('./client') should work
+      const clientJsContent = `// Auto-generated client.js wrapper for Prisma client
+// This will be transpiled by webpack - webpack should resolve ./client to client.ts
+// The extensionAlias in next.config.js maps .js to .ts
+module.exports = require('./client');
 `;
       fs.writeFileSync(clientJsPath, clientJsContent);
-      console.log('⚠️  Created minimal client.js wrapper');
+      console.log('⚠️  Created client.js wrapper - requires webpack to resolve ./client to client.ts');
     }
   }
 }
