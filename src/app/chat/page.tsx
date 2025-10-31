@@ -67,8 +67,19 @@ export default function ChatPage() {
         const data = await response.json();
         setSessions(data);
         if (data.length > 0) {
-          setCurrentSession(data[0]);
-          setMessages(data[0].messages || []);
+          const firstSession = data[0];
+          setCurrentSession(firstSession);
+          // Map chatMessages to messages format
+          const formattedMessages = (firstSession.chatMessages || []).map((msg: any) => ({
+            id: msg.id,
+            sessionId: msg.sessionId,
+            role: msg.role,
+            content: msg.content,
+            sources: msg.sources,
+            confidence: msg.confidence,
+            createdAt: new Date(msg.createdAt)
+          }));
+          setMessages(formattedMessages);
         }
       }
     } catch (error) {
@@ -241,7 +252,17 @@ export default function ChatPage() {
                       key={session.id}
                       onClick={() => {
                         setCurrentSession(session);
-                        setMessages(session.messages || []);
+                        // Convert chatMessages to ChatMessage format
+                        const formattedMessages = (session.chatMessages || []).map((msg: any) => ({
+                          id: msg.id,
+                          sessionId: msg.sessionId,
+                          role: msg.role,
+                          content: msg.content,
+                          sources: msg.sources,
+                          confidence: msg.confidence,
+                          createdAt: new Date(msg.createdAt)
+                        }));
+                        setMessages(formattedMessages);
                       }}
                       className={`w-full text-left p-3 rounded-md text-sm ${
                         currentSession?.id === session.id
