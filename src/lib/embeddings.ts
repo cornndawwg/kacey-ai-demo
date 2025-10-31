@@ -120,12 +120,33 @@ export async function searchSimilarChunks(
   } catch (error) {
     console.error('Error searching similar chunks:', error);
     console.error('Error details:', error instanceof Error ? error.message : String(error));
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
     
-    // Return empty array instead of throwing if no embeddings exist yet
-    if (error instanceof Error && error.message.includes('relation "embeddings" does not exist')) {
-      console.warn('Embeddings table does not exist yet, returning empty results');
+    // Return empty array instead of throwing if tables don't exist yet
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (
+      errorMessage.includes('relation "embeddings" does not exist') ||
+      errorMessage.includes('relation "knowledge_chunks" does not exist') ||
+      errorMessage.includes('relation "knowledge_artifacts" does not exist')
+    ) {
+      console.warn('Database tables do not exist yet, returning empty results. Please seed the database.');
       return [];
+    }
+    
+    // If it's a Prisma error with code P2010 (raw query error), check the message
+    if (error && typeof error === 'object' && 'code' in error) {
+      const prismaError = error as any;
+      const metaMessage = prismaError.meta?.message || '';
+      
+      if (prismaError.code === 'P2010' && metaMessage.includes('does not exist')) {
+        console.warn('Database tables missing, returning empty results. Please seed the database.');
+        return [];
+      }
+      
+      // Also check for P2021 (table does not exist) errors
+      if (prismaError.code === 'P2021') {
+        console.warn('Prisma table not found error, returning empty results. Please seed the database.');
+        return [];
+      }
     }
     
     throw new Error('Failed to search similar chunks');
