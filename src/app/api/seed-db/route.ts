@@ -49,9 +49,80 @@ export async function POST(request: NextRequest) {
       console.log('Setting up pgvector extension...');
       // Enable pgvector extension
       await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS vector;`;
+      console.log('pgvector extension enabled');
       
-      // Check if embeddings table exists and has the correct structure
-      const tableExists = await prisma.$queryRaw`
+      // Check if knowledge_chunks table exists (required for FK)
+      const chunksTableExists = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'knowledge_chunks'
+        );
+      `;
+      
+      const chunksExists = (chunksTableExists as any[])[0]?.exists;
+      
+      if (!chunksExists) {
+        console.log('knowledge_chunks table does not exist yet, will create embeddings after tables are created');
+        // Tables will be created by Prisma db push, so we'll skip for now
+      } else {
+        // Check if embeddings table exists and has the correct structure
+        const tableExists = await prisma.$queryRaw`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'embeddings'
+          );
+        `;
+        
+        const exists = (tableExists as any[])[0]?.exists;
+        
+        if (!exists) {
+          // Create embeddings table with vector type
+          console.log('Creating embeddings table with vector type...');
+          await prisma.$executeRaw`
+            CREATE TABLE IF NOT EXISTS embeddings (
+              id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+              "chunkId" TEXT UNIQUE NOT NULL,
+              vector vector(1536),
+              model TEXT DEFAULT 'text-embedding-3-small',
+              "createdAt" TIMESTAMP DEFAULT NOW(),
+              CONSTRAINT embeddings_chunkId_fkey FOREIGN KEY ("chunkId") REFERENCES knowledge_chunks(id) ON DELETE CASCADE
+            );
+          `;
+          
+          // Create index
+          await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS embeddings_chunkId_idx ON embeddings("chunkId");`;
+          console.log('Embeddings table created successfully');
+        } else {
+          // Check if vector column exists and is the right type
+          const columnCheck = await prisma.$queryRaw`
+            SELECT data_type FROM information_schema.columns 
+            WHERE table_name = 'embeddings' AND column_name = 'vector';
+          `;
+          
+          const columnType = (columnCheck as any[])[0]?.data_type;
+          
+          if (columnType !== 'USER-DEFINED' || !columnType) {
+            console.log('Updating embeddings table to use vector type...');
+            // Drop the old column and recreate with vector type
+            await prisma.$executeRaw`ALTER TABLE embeddings DROP COLUMN IF EXISTS vector;`;
+            await prisma.$executeRaw`ALTER TABLE embeddings ADD COLUMN vector vector(1536);`;
+            console.log('Embeddings table updated to use vector type');
+          } else {
+            console.log('Embeddings table already has vector type');
+          }
+        }
+      }
+    } catch (pgvectorError: any) {
+      console.error('Error setting up pgvector:', pgvectorError);
+      // Continue anyway - tables might get created during seeding
+    }
+    
+    // Ensure embeddings table exists after all Prisma tables are created
+    // This is a fallback in case the above didn't create it
+    try {
+      const tableExistsCheck = await prisma.$queryRaw`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
@@ -59,11 +130,18 @@ export async function POST(request: NextRequest) {
         );
       `;
       
-      const exists = (tableExists as any[])[0]?.exists;
+      const embeddingsExists = (tableExistsCheck as any[])[0]?.exists;
+      const chunksExistsCheck = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'knowledge_chunks'
+        );
+      `;
+      const chunksExistsNow = (chunksExistsCheck as any[])[0]?.exists;
       
-      if (!exists) {
-        // Create embeddings table with vector type
-        console.log('Creating embeddings table with vector type...');
+      if (!embeddingsExists && chunksExistsNow) {
+        console.log('Creating embeddings table now that knowledge_chunks exists...');
         await prisma.$executeRaw`
           CREATE TABLE IF NOT EXISTS embeddings (
             id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -74,32 +152,11 @@ export async function POST(request: NextRequest) {
             CONSTRAINT embeddings_chunkId_fkey FOREIGN KEY ("chunkId") REFERENCES knowledge_chunks(id) ON DELETE CASCADE
           );
         `;
-        
-        // Create index
         await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS embeddings_chunkId_idx ON embeddings("chunkId");`;
-        console.log('Embeddings table created successfully');
-      } else {
-        // Check if vector column exists and is the right type
-        const columnCheck = await prisma.$queryRaw`
-          SELECT data_type FROM information_schema.columns 
-          WHERE table_name = 'embeddings' AND column_name = 'vector';
-        `;
-        
-        const columnType = (columnCheck as any[])[0]?.data_type;
-        
-        if (columnType !== 'USER-DEFINED' || !columnType) {
-          console.log('Updating embeddings table to use vector type...');
-          // Drop the old column and recreate with vector type
-          await prisma.$executeRaw`ALTER TABLE embeddings DROP COLUMN IF EXISTS vector;`;
-          await prisma.$executeRaw`ALTER TABLE embeddings ADD COLUMN vector vector(1536);`;
-          console.log('Embeddings table updated to use vector type');
-        } else {
-          console.log('Embeddings table already has vector type');
-        }
+        console.log('Embeddings table created');
       }
-    } catch (pgvectorError: any) {
-      console.error('Error setting up pgvector:', pgvectorError);
-      // Continue anyway - might already be set up
+    } catch (fallbackError: any) {
+      console.error('Error in fallback embeddings creation:', fallbackError);
     }
 
     // Create demo company
