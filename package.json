@@ -7,11 +7,11 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "next dev --webpack",
-    "postinstall": "prisma generate || true",
+    "dev": "next dev",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
-    "build": "rm -rf node_modules/.prisma && prisma generate && node scripts/post-prisma-generate.js && next build --webpack",
-    "start": "prisma db push --skip-generate && next start",
+    "build": "prisma generate && next build",
+    "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {

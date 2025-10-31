@@ -5,11 +5,142 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../node_modules/.prisma/client"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL_PRIVATE")
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  roles     Role[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("EMPLOYEE") // ADMIN or EMPLOYEE
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id                 String              @id @default(uuid())
+  title              String
+  description        String?
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id])
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  knowledgeArtifacts KnowledgeArtifact[]
+  interviewSessions  InterviewSession[]
+  chatSessions       ChatSession[]
+
+  @@unique([title, companyId])
+}
+
+model KnowledgeArtifact {
+  id              String           @id @default(uuid())
+  title           String
+  description     String?
+  type            String // PDF, DOC, DOCX, TXT, CSV, XLSX, HTML, IMAGE, AUDIO, VIDEO, OTHER
+  fileUrl         String?
+  content         String?
+  metadata        Json?
+  roleId          String?
+  role            Role?            @relation(fields: [roleId], references: [id])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  knowledgeChunks KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id         String            @id @default(uuid())
+  artifactId String
+  artifact   KnowledgeArtifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  content    String
+  chunkIndex Int
+  tokenCount Int
+  metadata   Json?
+  createdAt  DateTime          @default(now())
+  embeddings Embedding[]
+
+  @@index([artifactId])
+}
+
+model Embedding {
+  id        String         @id @default(uuid())
+  chunkId   String         @unique
+  chunk     KnowledgeChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  vector    String         @db.Text // Will use pgvector extension
+  model     String         @default("text-embedding-3-small")
+  createdAt DateTime       @default(now())
+
+  @@index([chunkId])
+}
+
+model InterviewSession {
+  id                 String              @id @default(uuid())
+  roleId             String
+  role               Role                @relation(fields: [roleId], references: [id])
+  phase              String // DISCOVERY_HR, CORE_ROLE, SUPPORTING_ROLES, LEADERSHIP_ALIGNMENT, FINAL_ROLE
+  status             String              @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, CANCELLED
+  startedAt          DateTime            @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  interviewResponses InterviewResponse[]
+
+  @@index([roleId, status])
+}
+
+model InterviewResponse {
+  id         String           @id @default(uuid())
+  sessionId  String
+  session    InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question   String
+  response   String?
+  transcript String?
+  audioUrl   String?
+  phase      String
+  tag        String? // PROCESS, DECISION, RELATIONSHIP, EXCEPTION
+  confidence Float?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([sessionId])
+}
+
+model ChatSession {
+  id           String        @id @default(uuid())
+  roleId       String
+  role         Role          @relation(fields: [roleId], references: [id])
+  title        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  chatMessages ChatMessage[]
+
+  @@index([roleId])
+}
+
+model ChatMessage {
+  id         String      @id @default(uuid())
+  sessionId  String
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role       String // USER, ASSISTANT, SYSTEM
+  content    String
+  sources    Json?       @default("[]")
+  confidence Float?
+  createdAt  DateTime    @default(now())
+
+  @@index([sessionId])
 }
