@@ -169,6 +169,41 @@ Budget Allocation:
         data: chunks
       });
 
+      // Ensure embeddings table exists before generating embeddings
+      try {
+        const embeddingsCheck = await prisma.$queryRaw`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'embeddings'
+          );
+        `;
+        const embeddingsExists = (embeddingsCheck as any[])[0]?.exists;
+        
+        if (!embeddingsExists) {
+          console.log('Creating embeddings table before generating embeddings...');
+          // Enable pgvector extension
+          await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS vector;`;
+          
+          // Create embeddings table
+          await prisma.$executeRaw`
+            CREATE TABLE IF NOT EXISTS embeddings (
+              id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+              "chunkId" TEXT UNIQUE NOT NULL,
+              vector vector(1536),
+              model TEXT DEFAULT 'text-embedding-3-small',
+              "createdAt" TIMESTAMP DEFAULT NOW(),
+              CONSTRAINT embeddings_chunkId_fkey FOREIGN KEY ("chunkId") REFERENCES knowledge_chunks(id) ON DELETE CASCADE
+            );
+          `;
+          await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS embeddings_chunkId_idx ON embeddings("chunkId");`;
+          console.log('Embeddings table created');
+        }
+      } catch (embeddingTableError: any) {
+        console.error('Error ensuring embeddings table exists:', embeddingTableError);
+        // Continue anyway - might already exist
+      }
+
       // Generate embeddings
       await generateEmbeddingsForArtifact(artifact.id);
     }
