@@ -126,7 +126,7 @@ fs.writeFileSync(defaultJsPath, defaultContent);
 console.log('✅ Created default.js that re-exports from', indexJsExists || (!indexJsExists && clientTsExists) ? 'index' : 'client');
 
 // Also create default.d.ts if client.ts exists
-const clientTsPath = path.resolve(generatedPath, 'client.ts');
+// Note: clientTsPath was already declared above on line 54
 if (fs.existsSync(clientTsPath)) {
   const defaultDtsContent = `// Auto-generated type definitions
 export * from './client';
