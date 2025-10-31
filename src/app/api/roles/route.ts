@@ -11,7 +11,7 @@ export const GET = withAuth(async (request: NextRequest, user: any) => {
       include: {
         interviewSessions: {
           include: {
-            responses: true
+            interviewResponses: true
           }
         },
         chatSessions: true

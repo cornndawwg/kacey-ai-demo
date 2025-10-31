@@ -12,7 +12,7 @@ export const GET = withAuth(async (request: NextRequest, user: any) => {
       },
       include: {
         role: true,
-        messages: {
+        chatMessages: {
           orderBy: {
             createdAt: 'asc'
           }

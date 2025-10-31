@@ -26,7 +26,7 @@ export const POST = withAuth(async (request: NextRequest, user: any) => {
       },
       include: {
         role: true,
-        messages: {
+        chatMessages: {
           orderBy: {
             createdAt: 'asc'
           }
@@ -62,7 +62,7 @@ export const POST = withAuth(async (request: NextRequest, user: any) => {
     }));
 
     // Generate AI response
-    const conversationHistory = session.messages.map((msg: { role: string; content: string }) => ({
+    const conversationHistory = session.chatMessages.map((msg: { role: string; content: string }) => ({
       role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
       content: msg.content
     }));

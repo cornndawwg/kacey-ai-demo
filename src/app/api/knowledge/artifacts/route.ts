@@ -77,7 +77,7 @@ export const GET = withAuth(async (request: NextRequest, user: any) => {
         }
       },
       include: {
-        chunks: true
+        knowledgeChunks: true
       },
       orderBy: {
         createdAt: 'desc'
