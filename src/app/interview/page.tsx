@@ -11,8 +11,14 @@ export default function InterviewPage() {
   const [currentPhase, setCurrentPhase] = useState<string>('DISCOVERY_HR');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, string>>({});
+  const [savedResponses, setSavedResponses] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [transcriptionError, setTranscriptionError] = useState('');
+  const [interviewSession, setInterviewSession] = useState<any>(null);
+  const [roles, setRoles] = useState<any[]>([]);
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -25,6 +31,8 @@ export default function InterviewPage() {
     try {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
+      loadRoles();
+      // Load existing interview session or create new one will be handled after role selection
     } catch (error) {
       console.error('Error parsing user data:', error);
       router.push('/auth/login');
@@ -32,6 +40,242 @@ export default function InterviewPage() {
       setIsLoading(false);
     }
   }, [router]);
+
+  const loadRoles = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/roles', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRoles(data);
+        // Auto-select first role if available
+        if (data.length > 0 && !selectedRoleId) {
+          setSelectedRoleId(data[0].id);
+          loadOrCreateSession(data[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading roles:', error);
+    }
+  };
+
+  const loadOrCreateSession = async (roleId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Try to find existing IN_PROGRESS session for this role
+      const sessionsResponse = await fetch('/api/interview/sessions', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (sessionsResponse.ok) {
+        const sessions = await sessionsResponse.json();
+        const existingSession = sessions.find((s: any) => 
+          s.roleId === roleId && s.status === 'IN_PROGRESS'
+        );
+
+        if (existingSession) {
+          setInterviewSession(existingSession);
+          
+          // Load saved responses - match by question text prefix (category + question)
+          const responsesMap: Record<string, string> = {};
+          const savedResponsesMap: Record<string, any> = {};
+          
+          existingSession.interviewResponses?.forEach((resp: any) => {
+            // Find matching question by checking if response question starts with category: question
+            const matchingQuestion = INTERVIEW_QUESTIONS.find(q => {
+              const questionKey = `${q.category}: ${q.question}`;
+              return resp.question && resp.question.startsWith(questionKey.substring(0, 50));
+            });
+            
+            if (matchingQuestion) {
+              responsesMap[matchingQuestion.id] = resp.response || '';
+              savedResponsesMap[matchingQuestion.id] = resp;
+            }
+          });
+          
+          setResponses(responsesMap);
+          setSavedResponses(savedResponsesMap);
+          
+          // Restore phase and question index
+          if (existingSession.phase) {
+            setCurrentPhase(existingSession.phase);
+            // Find the question index for the current phase
+            const phaseQuestions = INTERVIEW_QUESTIONS.filter(q => q.phase === existingSession.phase);
+            // Find last answered question in this phase
+            const lastAnsweredIndex = phaseQuestions.findIndex(q => {
+              return responsesMap[q.id] && responsesMap[q.id].trim();
+            });
+            // If found, go to next unanswered question, otherwise start at beginning
+            if (lastAnsweredIndex >= 0 && lastAnsweredIndex < phaseQuestions.length - 1) {
+              setCurrentQuestionIndex(lastAnsweredIndex + 1);
+            } else {
+              setCurrentQuestionIndex(0);
+            }
+          }
+          return;
+        }
+      }
+
+      // Create new session if none exists
+      const createResponse = await fetch('/api/interview/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          roleId: roleId,
+          phase: 'DISCOVERY_HR'
+        })
+      });
+
+      if (createResponse.ok) {
+        const newSession = await createResponse.json();
+        setInterviewSession(newSession);
+      }
+    } catch (error) {
+      console.error('Error loading/creating session:', error);
+    }
+  };
+
+  const saveResponse = async (questionId: string, responseText: string) => {
+    if (!interviewSession || !responseText.trim()) {
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      const question = INTERVIEW_QUESTIONS.find(q => q.id === questionId);
+      
+      if (!question) {
+        return;
+      }
+
+      // Check if response already exists (by finding response with matching question)
+      const existingResponse = Object.values(savedResponses).find((resp: any) => {
+        // Match by checking if the saved response question starts with our question category:question prefix
+        const questionKey = `${question.category}: ${question.question}`;
+        return resp.question && resp.question.startsWith(questionKey.substring(0, 50));
+      });
+      
+      const responseData = {
+        sessionId: interviewSession.id,
+        question: `${question.category}: ${question.question}`,
+        response: responseText,
+        phase: currentPhase,
+        tag: question.tag,
+        confidence: 0.9 // Could be calculated based on response length, etc.
+      };
+
+      let response;
+      if (existingResponse?.id) {
+        // Update existing response
+        response = await fetch('/api/interview/responses', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            id: existingResponse.id,
+            response: responseText,
+            confidence: 0.9
+          })
+        });
+      } else {
+        // Create new response
+        response = await fetch('/api/interview/responses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(responseData)
+        });
+      }
+
+      if (response.ok) {
+        const savedResponse = await response.json();
+        setSavedResponses(prev => ({
+          ...prev,
+          [questionId]: savedResponse
+        }));
+        setSaveMessage('✓ Saved');
+        setTimeout(() => setSaveMessage(null), 2000);
+      } else {
+        console.error('Error saving response');
+        setSaveMessage('Error saving');
+        setTimeout(() => setSaveMessage(null), 3000);
+      }
+    } catch (error) {
+      console.error('Error saving response:', error);
+      setSaveMessage('Error saving');
+      setTimeout(() => setSaveMessage(null), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateSessionPhase = async (newPhase: string) => {
+    if (!interviewSession) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`/api/interview/sessions/${interviewSession.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          phase: newPhase
+        })
+      });
+    } catch (error) {
+      console.error('Error updating session phase:', error);
+    }
+  };
+
+  const completeInterview = async () => {
+    if (!interviewSession) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/interview/sessions/${interviewSession.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          status: 'COMPLETED',
+          phase: 'FINAL_ROLE',
+          completedAt: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        alert('Interview completed successfully!');
+        router.push('/dashboard');
+      } else {
+        alert('Error completing interview. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error completing interview:', error);
+      alert('Error completing interview. Please try again.');
+    }
+  };
 
   const phases = Object.keys(PHASE_INFO) as Array<keyof typeof PHASE_INFO>;
   const currentPhaseQuestions = INTERVIEW_QUESTIONS.filter(q => q.phase === currentPhase);
@@ -42,6 +286,13 @@ export default function InterviewPage() {
       ...prev,
       [questionId]: response
     }));
+    // Auto-save after 2 seconds of no typing (debounced)
+    clearTimeout((window as any).saveTimeout);
+    (window as any).saveTimeout = setTimeout(() => {
+      if (response.trim()) {
+        saveResponse(questionId, response);
+      }
+    }, 2000);
   };
 
   const handleTranscription = (text: string) => {
@@ -57,15 +308,26 @@ export default function InterviewPage() {
     setTimeout(() => setTranscriptionError(''), 5000);
   };
 
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
+    // Save current response before moving
+    if (currentQuestion && responses[currentQuestion.id]) {
+      await saveResponse(currentQuestion.id, responses[currentQuestion.id]);
+    }
+
     if (currentQuestionIndex < currentPhaseQuestions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
     } else {
       // Move to next phase
       const currentPhaseIndex = phases.indexOf(currentPhase as keyof typeof PHASE_INFO);
       if (currentPhaseIndex < phases.length - 1) {
-        setCurrentPhase(phases[currentPhaseIndex + 1]);
+        const nextPhase = phases[currentPhaseIndex + 1];
+        setCurrentPhase(nextPhase);
         setCurrentQuestionIndex(0);
+        // Update session phase in database
+        await updateSessionPhase(nextPhase);
+      } else {
+        // This is the last question - complete interview
+        await completeInterview();
       }
     }
   };
@@ -127,7 +389,32 @@ export default function InterviewPage() {
 
       <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
+          {/* Role Selection (if no session) */}
+          {!interviewSession && roles.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Role for Interview</h2>
+              <select
+                value={selectedRoleId}
+                onChange={(e) => {
+                  setSelectedRoleId(e.target.value);
+                  if (e.target.value) {
+                    loadOrCreateSession(e.target.value);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="">Select a role...</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Phase Progress */}
+          {interviewSession && (
           <div className="mb-8">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-gray-900">Interview Progress</h2>
@@ -169,9 +456,10 @@ export default function InterviewPage() {
               })}
             </div>
           </div>
+          )}
 
           {/* Current Question */}
-          {currentQuestion && (
+          {interviewSession && currentQuestion && (
             <div className="bg-white rounded-lg shadow p-6">
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
@@ -239,15 +527,39 @@ export default function InterviewPage() {
                   >
                     Previous
                   </button>
-                  <button
-                    onClick={handleNextQuestion}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {currentPhase === 'FINAL_ROLE' && currentQuestionIndex === currentPhaseQuestions.length - 1
-                      ? 'Complete Interview'
-                      : 'Next'
-                    }
-                  </button>
+                  <div className="flex items-center space-x-3">
+                    {saveMessage && (
+                      <span className={`text-sm ${saveMessage === 'Saved' ? 'text-green-600' : 'text-red-600'}`}>
+                        {saveMessage}
+                      </span>
+                    )}
+                    {isSaving && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        <span>Saving...</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={async () => {
+                        if (currentQuestion && responses[currentQuestion.id]) {
+                          await saveResponse(currentQuestion.id, responses[currentQuestion.id]);
+                        }
+                      }}
+                      disabled={!currentQuestion || !responses[currentQuestion.id] || isSaving}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={handleNextQuestion}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {currentPhase === 'FINAL_ROLE' && currentQuestionIndex === currentPhaseQuestions.length - 1
+                        ? 'Complete Interview'
+                        : 'Next'
+                      }
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
