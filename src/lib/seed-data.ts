@@ -185,19 +185,31 @@ Budget Allocation:
           // Enable pgvector extension
           await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS vector;`;
           
-          // Create embeddings table
+          // Create embeddings table without FK first
           await prisma.$executeRaw`
             CREATE TABLE IF NOT EXISTS embeddings (
               id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
               "chunkId" TEXT UNIQUE NOT NULL,
               vector vector(1536),
               model TEXT DEFAULT 'text-embedding-3-small',
-              "createdAt" TIMESTAMP DEFAULT NOW(),
-              CONSTRAINT embeddings_chunkId_fkey FOREIGN KEY ("chunkId") REFERENCES knowledge_chunks(id) ON DELETE CASCADE
+              "createdAt" TIMESTAMP DEFAULT NOW()
             );
           `;
           await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS embeddings_chunkId_idx ON embeddings("chunkId");`;
-          console.log('Embeddings table created');
+          
+          // Try to add FK constraint
+          try {
+            await prisma.$executeRaw`
+              ALTER TABLE embeddings 
+              ADD CONSTRAINT embeddings_chunkId_fkey 
+              FOREIGN KEY ("chunkId") 
+              REFERENCES knowledge_chunks(id) 
+              ON DELETE CASCADE;
+            `;
+            console.log('Embeddings table created with FK constraint');
+          } catch (fkError: any) {
+            console.log('Embeddings table created without FK (will add later):', fkError.message);
+          }
         }
       } catch (embeddingTableError: any) {
         console.error('Error ensuring embeddings table exists:', embeddingTableError);

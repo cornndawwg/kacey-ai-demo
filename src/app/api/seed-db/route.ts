@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
         
         if (!exists) {
           // Create embeddings table with vector type
+          // First create without FK constraint, then add FK later
           console.log('Creating embeddings table with vector type...');
           await prisma.$executeRaw`
             CREATE TABLE IF NOT EXISTS embeddings (
@@ -86,10 +87,24 @@ export async function POST(request: NextRequest) {
               "chunkId" TEXT UNIQUE NOT NULL,
               vector vector(1536),
               model TEXT DEFAULT 'text-embedding-3-small',
-              "createdAt" TIMESTAMP DEFAULT NOW(),
-              CONSTRAINT embeddings_chunkId_fkey FOREIGN KEY ("chunkId") REFERENCES knowledge_chunks(id) ON DELETE CASCADE
+              "createdAt" TIMESTAMP DEFAULT NOW()
             );
           `;
+          
+          // Try to add FK constraint if knowledge_chunks exists
+          try {
+            await prisma.$executeRaw`
+              ALTER TABLE embeddings 
+              ADD CONSTRAINT embeddings_chunkId_fkey 
+              FOREIGN KEY ("chunkId") 
+              REFERENCES knowledge_chunks(id) 
+              ON DELETE CASCADE;
+            `;
+            console.log('Added FK constraint to embeddings table');
+          } catch (fkError: any) {
+            console.log('Could not add FK constraint yet (knowledge_chunks may not exist):', fkError.message);
+            // FK will be added later when knowledge_chunks exists
+          }
           
           // Create index
           await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS embeddings_chunkId_idx ON embeddings("chunkId");`;
@@ -154,6 +169,31 @@ export async function POST(request: NextRequest) {
         `;
         await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS embeddings_chunkId_idx ON embeddings("chunkId");`;
         console.log('Embeddings table created');
+      } else if (embeddingsExists && chunksExistsNow) {
+        // Table exists but might not have FK constraint - add it
+        try {
+          const constraintCheck = await prisma.$queryRaw`
+            SELECT constraint_name 
+            FROM information_schema.table_constraints 
+            WHERE table_name = 'embeddings' 
+            AND constraint_name = 'embeddings_chunkId_fkey';
+          `;
+          const constraintExists = (constraintCheck as any[]).length > 0;
+          
+          if (!constraintExists) {
+            console.log('Adding FK constraint to existing embeddings table...');
+            await prisma.$executeRaw`
+              ALTER TABLE embeddings 
+              ADD CONSTRAINT embeddings_chunkId_fkey 
+              FOREIGN KEY ("chunkId") 
+              REFERENCES knowledge_chunks(id) 
+              ON DELETE CASCADE;
+            `;
+            console.log('FK constraint added');
+          }
+        } catch (fkError: any) {
+          console.log('FK constraint may already exist:', fkError.message);
+        }
       }
     } catch (fallbackError: any) {
       console.error('Error in fallback embeddings creation:', fallbackError);
