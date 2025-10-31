@@ -20,6 +20,8 @@ model Company {
   updatedAt DateTime @updatedAt
   users     User[]
   roles     Role[]
+
+  @@map("companies")
 }
 
 model User {
