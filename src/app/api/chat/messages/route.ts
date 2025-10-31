@@ -53,11 +53,41 @@ export const POST = withAuth(async (request: NextRequest, user: any) => {
     // Search for relevant context
     // Use the roleId from the session if not provided
     const searchRoleId = roleId || session.roleId;
+    console.log(`Chat message - session.roleId: ${session.roleId}, provided roleId: ${roleId}, using searchRoleId: ${searchRoleId}`);
+    
     let similarChunks: Array<{ chunk: any; similarity: number }> = [];
     
     try {
       similarChunks = await searchSimilarChunks(message, 10, searchRoleId);
       console.log(`Found ${similarChunks.length} similar chunks for query: "${message.substring(0, 50)}..."`);
+      
+      if (similarChunks.length === 0) {
+        console.warn('No chunks found! Checking if embeddings exist...');
+        // Check if we have any embeddings at all
+        const allEmbeddings = await prisma.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(*) as count FROM embeddings
+        `;
+        console.log(`Total embeddings available: ${allEmbeddings[0]?.count || 0}`);
+        
+        // Check if we have chunks for this role
+        if (searchRoleId) {
+          const roleChunks = await prisma.knowledgeChunk.findMany({
+            where: {
+              artifact: {
+                roleId: searchRoleId
+              }
+            },
+            include: {
+              artifact: true
+            },
+            take: 5
+          });
+          console.log(`Found ${roleChunks.length} chunks for roleId ${searchRoleId}`);
+          if (roleChunks.length > 0) {
+            console.log(`Sample artifact: ${roleChunks[0]?.artifact?.title}`);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error searching similar chunks:', error);
       // Continue with empty context if search fails

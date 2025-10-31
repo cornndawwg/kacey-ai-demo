@@ -74,14 +74,24 @@ export async function searchSimilarChunks(
   similarity: number;
 }>> {
   try {
+    console.log(`Searching for: "${query}", roleId: ${roleId || 'none'}, limit: ${limit}`);
+    
+    // Check if embeddings exist first
+    const embeddingsCount = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) as count FROM embeddings
+    `;
+    console.log(`Total embeddings in database: ${embeddingsCount[0]?.count || 0}`);
+    
     // Generate embedding for the query
     const queryEmbedding = await generateEmbedding(query);
     const embeddingJson = JSON.stringify(queryEmbedding);
+    console.log(`Generated query embedding of length: ${queryEmbedding.length}`);
 
     // Build query based on whether roleId is provided
     let results: any[];
     
     if (roleId) {
+      console.log(`Searching with role filter: ${roleId}`);
       // Search with role filter
       results = await prisma.$queryRaw`
         SELECT 
@@ -96,6 +106,7 @@ export async function searchSimilarChunks(
         LIMIT ${limit}
       `;
     } else {
+      console.log('Searching without role filter');
       // Search without role filter
       results = await prisma.$queryRaw`
         SELECT 
@@ -107,6 +118,12 @@ export async function searchSimilarChunks(
         ORDER BY e.vector <=> ${embeddingJson}::vector
         LIMIT ${limit}
       `;
+    }
+
+    console.log(`Found ${results.length} results from search`);
+    if (results.length > 0) {
+      console.log(`Top result similarity: ${results[0]?.similarity}`);
+      console.log(`Top result chunk preview: ${results[0]?.content?.substring(0, 100)}...`);
     }
 
     // Map results to the expected format
