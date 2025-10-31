@@ -233,11 +233,11 @@ export default function ChatPage() {
 
       <div className="max-w-6xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-200px)]">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6" style={{ height: 'calc(100vh - 200px)', maxHeight: 'calc(100vh - 200px)' }}>
             {/* Sessions Sidebar */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow p-4 h-full">
-                <div className="flex justify-between items-center mb-4">
+            <div className="lg:col-span-1 flex flex-col min-h-0">
+              <div className="bg-white rounded-lg shadow p-4 h-full flex flex-col min-h-0">
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
                   <h2 className="text-lg font-medium text-gray-900">Chat Sessions</h2>
                   <button
                     onClick={createNewSession}
@@ -246,7 +246,7 @@ export default function ChatPage() {
                     New Chat
                   </button>
                 </div>
-                <div className="space-y-2 overflow-y-auto">
+                <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
                   {sessions.map((session) => (
                     <button
                       key={session.id}
@@ -281,17 +281,17 @@ export default function ChatPage() {
             </div>
 
             {/* Chat Area */}
-            <div className="lg:col-span-3">
-              <div className="bg-white rounded-lg shadow h-full flex flex-col">
+            <div className="lg:col-span-3 flex flex-col min-h-0">
+              <div className="bg-white rounded-lg shadow h-full flex flex-col min-h-0">
                 {/* Chat Header */}
-                <div className="p-4 border-b border-gray-200">
+                <div className="p-4 border-b border-gray-200 flex-shrink-0">
                   <h3 className="text-lg font-medium text-gray-900">
                     {currentSession?.title || 'Select a chat session'}
                   </h3>
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                   {!currentSession ? (
                     <div className="text-center text-gray-500 mt-8">
                       <p>Create a new chat session to get started.</p>
@@ -352,7 +352,7 @@ export default function ChatPage() {
                 </div>
 
                 {/* Input Area */}
-                <div className="p-4 border-t border-gray-200">
+                <div className="p-4 border-t border-gray-200 flex-shrink-0">
                   <div className="flex space-x-2">
                     <input
                       type="text"
