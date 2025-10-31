@@ -90,35 +90,37 @@ export async function searchSimilarChunks(
     // Build query based on whether roleId is provided
     let results: any[];
     
-    if (roleId) {
-      console.log(`Searching with role filter: ${roleId}`);
-      // Search with role filter
-      results = await prisma.$queryRaw`
-        SELECT 
-          c.*,
-          e.vector,
-          1 - (e.vector <=> ${embeddingJson}::vector) as similarity
-        FROM knowledge_chunks c
-        JOIN embeddings e ON c.id = e."chunkId"
-        JOIN knowledge_artifacts a ON c."artifactId" = a.id
-        WHERE a."roleId" = ${roleId}
-        ORDER BY e.vector <=> ${embeddingJson}::vector
-        LIMIT ${limit}
-      `;
-    } else {
-      console.log('Searching without role filter');
-      // Search without role filter
-      results = await prisma.$queryRaw`
-        SELECT 
-          c.*,
-          e.vector,
-          1 - (e.vector <=> ${embeddingJson}::vector) as similarity
-        FROM knowledge_chunks c
-        JOIN embeddings e ON c.id = e."chunkId"
-        ORDER BY e.vector <=> ${embeddingJson}::vector
-        LIMIT ${limit}
-      `;
-    }
+            if (roleId) {
+              console.log(`Searching with role filter: ${roleId}`);
+              // Search with role filter
+              // Note: Don't select e.vector directly - Prisma can't deserialize pgvector type
+              // We only need the similarity score and chunk data
+              results = await prisma.$queryRaw`
+                SELECT
+                  c.*,
+                  1 - (e.vector <=> ${embeddingJson}::vector) as similarity
+                FROM knowledge_chunks c
+                JOIN embeddings e ON c.id = e."chunkId"
+                JOIN knowledge_artifacts a ON c."artifactId" = a.id
+                WHERE a."roleId" = ${roleId}
+                ORDER BY e.vector <=> ${embeddingJson}::vector
+                LIMIT ${limit}
+              `;
+            } else {
+              console.log('Searching without role filter');
+              // Search without role filter
+              // Note: Don't select e.vector directly - Prisma can't deserialize pgvector type
+              // We only need the similarity score and chunk data
+              results = await prisma.$queryRaw`
+                SELECT
+                  c.*,
+                  1 - (e.vector <=> ${embeddingJson}::vector) as similarity
+                FROM knowledge_chunks c
+                JOIN embeddings e ON c.id = e."chunkId"
+                ORDER BY e.vector <=> ${embeddingJson}::vector
+                LIMIT ${limit}
+              `;
+            }
 
     console.log(`Found ${results.length} results from search`);
     if (results.length > 0) {
@@ -126,14 +128,15 @@ export async function searchSimilarChunks(
       console.log(`Top result chunk preview: ${results[0]?.content?.substring(0, 100)}...`);
     }
 
-    // Map results to the expected format
-    return results.map((row: any) => {
-      const { vector, similarity, ...chunk } = row;
-      return {
-        chunk,
-        similarity: parseFloat(similarity) || 0
-      };
-    });
+            // Map results to the expected format
+            // Note: We no longer select vector in the query, so we don't need to destructure it
+            return results.map((row: any) => {
+              const { similarity, ...chunk } = row;
+              return {
+                chunk,
+                similarity: parseFloat(similarity) || 0
+              };
+            });
 
   } catch (error) {
     console.error('Error searching similar chunks:', error);
