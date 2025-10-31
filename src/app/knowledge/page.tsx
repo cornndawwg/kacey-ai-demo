@@ -14,6 +14,14 @@ export default function KnowledgePage() {
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedArtifact, setSelectedArtifact] = useState<any | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [uploadRoleId, setUploadRoleId] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -147,6 +155,79 @@ export default function KnowledgePage() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadFile(file);
+      if (!uploadTitle) {
+        // Auto-fill title from filename (remove extension)
+        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+        setUploadTitle(nameWithoutExt);
+      }
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!uploadFile) {
+      setUploadError('Please select a file to upload');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadSuccess(false);
+
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('title', uploadTitle || uploadFile.name);
+      formData.append('description', uploadDescription);
+      if (uploadRoleId) {
+        formData.append('roleId', uploadRoleId);
+      }
+
+      const response = await fetch('/api/knowledge/artifacts', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUploadSuccess(true);
+        
+        // Note: Embeddings will be generated in the background by the API
+        // or can be generated manually later if needed
+
+        // Reset form
+        setUploadFile(null);
+        setUploadTitle('');
+        setUploadDescription('');
+        setUploadRoleId('');
+        
+        // Reload artifacts
+        await loadArtifacts();
+        
+        // Close modal after 2 seconds
+        setTimeout(() => {
+          setShowUploadModal(false);
+          setUploadSuccess(false);
+        }, 2000);
+      } else {
+        const error = await response.json();
+        setUploadError(error.error || 'Failed to upload document');
+      }
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      setUploadError('Failed to upload document. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleDownload = (artifact: any) => {
     if (!artifact.content) {
       alert('No content available to download');
@@ -233,6 +314,20 @@ export default function KnowledgePage() {
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
+          {/* Header with Upload Button */}
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Knowledge Artifacts</h2>
+            {user?.role === 'ADMIN' && (
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+              >
+                <span>📤</span>
+                <span>Upload Document</span>
+              </button>
+            )}
+          </div>
+
           {/* Filters */}
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -475,6 +570,156 @@ export default function KnowledgePage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200 flex-shrink-0">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-semibold text-gray-900">Upload Document</h2>
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setUploadFile(null);
+                    setUploadTitle('');
+                    setUploadDescription('');
+                    setUploadRoleId('');
+                    setUploadError(null);
+                    setUploadSuccess(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {uploadSuccess ? (
+                <div className="text-center py-8">
+                  <div className="text-green-500 text-6xl mb-4">✓</div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Document Uploaded Successfully!</h3>
+                  <p className="text-gray-600">The document has been processed and added to the knowledge base.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* File Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select File <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.html,.htm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      disabled={isUploading}
+                    />
+                    {uploadFile && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        Selected: <span className="font-medium">{uploadFile.name}</span> ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Supported formats: PDF, DOC, DOCX, TXT, CSV, XLSX, XLS, HTML
+                    </p>
+                  </div>
+
+                  {/* Title */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadTitle}
+                      onChange={(e) => setUploadTitle(e.target.value)}
+                      placeholder="Enter document title"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      disabled={isUploading}
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={uploadDescription}
+                      onChange={(e) => setUploadDescription(e.target.value)}
+                      placeholder="Enter document description (optional)"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      disabled={isUploading}
+                    />
+                  </div>
+
+                  {/* Role Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Associate with Role
+                    </label>
+                    <select
+                      value={uploadRoleId}
+                      onChange={(e) => setUploadRoleId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      disabled={isUploading}
+                    >
+                      <option value="">No role (General knowledge)</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Error Message */}
+                  {uploadError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-sm text-red-600">{uploadError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            {!uploadSuccess && (
+              <div className="p-6 border-t border-gray-200 flex-shrink-0 flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setUploadFile(null);
+                    setUploadTitle('');
+                    setUploadDescription('');
+                    setUploadRoleId('');
+                    setUploadError(null);
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium"
+                  disabled={isUploading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpload}
+                  disabled={!uploadFile || isUploading || !uploadTitle.trim()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {isUploading && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  )}
+                  <span>{isUploading ? 'Uploading...' : 'Upload Document'}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
