@@ -12,6 +12,8 @@ export default function KnowledgePage() {
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [selectedArtifact, setSelectedArtifact] = useState<any | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -116,6 +118,83 @@ export default function KnowledgePage() {
       default:
         return 'bg-yellow-100 text-yellow-800';
     }
+  };
+
+  const handleViewDetails = async (artifact: any) => {
+    // Fetch full artifact with all chunks
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/knowledge/artifacts/${artifact.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const fullArtifact = await response.json();
+        setSelectedArtifact(fullArtifact);
+        setShowDetailsModal(true);
+      } else {
+        // If endpoint doesn't exist, use the artifact we have
+        setSelectedArtifact(artifact);
+        setShowDetailsModal(true);
+      }
+    } catch (error) {
+      console.error('Error fetching artifact details:', error);
+      // Use the artifact we have
+      setSelectedArtifact(artifact);
+      setShowDetailsModal(true);
+    }
+  };
+
+  const handleDownload = (artifact: any) => {
+    if (!artifact.content) {
+      alert('No content available to download');
+      return;
+    }
+
+    // Create a blob with the content
+    const content = artifact.content;
+    let blob: Blob;
+    let filename: string;
+    let mimeType: string;
+
+    switch (artifact.type) {
+      case 'PDF':
+        // For PDF, we'd need the actual file. For now, create a text file
+        blob = new Blob([content], { type: 'text/plain' });
+        filename = `${artifact.title.replace(/[^a-z0-9]/gi, '_')}.txt`;
+        break;
+      case 'DOCX':
+      case 'DOC':
+        blob = new Blob([content], { type: 'text/plain' });
+        filename = `${artifact.title.replace(/[^a-z0-9]/gi, '_')}.txt`;
+        break;
+      case 'XLSX':
+      case 'CSV':
+        blob = new Blob([content], { type: 'text/csv' });
+        filename = `${artifact.title.replace(/[^a-z0-9]/gi, '_')}.csv`;
+        break;
+      case 'HTML':
+        blob = new Blob([content], { type: 'text/html' });
+        filename = `${artifact.title.replace(/[^a-z0-9]/gi, '_')}.html`;
+        break;
+      case 'TXT':
+      default:
+        blob = new Blob([content], { type: 'text/plain' });
+        filename = `${artifact.title.replace(/[^a-z0-9]/gi, '_')}.txt`;
+        break;
+    }
+
+    // Create download link and trigger download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   if (isLoading) {
@@ -251,10 +330,16 @@ export default function KnowledgePage() {
 
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="flex space-x-2">
-                    <button className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium">
+                    <button
+                      onClick={() => handleViewDetails(artifact)}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium"
+                    >
                       View Details
                     </button>
-                    <button className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium">
+                    <button
+                      onClick={() => handleDownload(artifact)}
+                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
+                    >
                       Download
                     </button>
                   </div>
@@ -277,6 +362,123 @@ export default function KnowledgePage() {
           )}
         </div>
       </div>
+
+      {/* Details Modal */}
+      {showDetailsModal && selectedArtifact && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200 flex-shrink-0">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="text-2xl">{getTypeIcon(selectedArtifact.type)}</span>
+                    <h2 className="text-2xl font-semibold text-gray-900">{selectedArtifact.title}</h2>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedArtifact.type)}`}>
+                      {selectedArtifact.type}
+                    </span>
+                  </div>
+                  {selectedArtifact.description && (
+                    <p className="text-gray-600 text-sm">{selectedArtifact.description}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    setSelectedArtifact(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold ml-4"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Metadata */}
+              <div className="mb-6 pb-6 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Metadata</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Chunks:</span>
+                    <span className="ml-2 font-medium">{selectedArtifact.knowledgeChunks?.length || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Created:</span>
+                    <span className="ml-2 font-medium">{new Date(selectedArtifact.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  {selectedArtifact.metadata?.wordCount && (
+                    <div>
+                      <span className="text-gray-600">Words:</span>
+                      <span className="ml-2 font-medium">{selectedArtifact.metadata.wordCount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {selectedArtifact.metadata?.pages && (
+                    <div>
+                      <span className="text-gray-600">Pages:</span>
+                      <span className="ml-2 font-medium">{selectedArtifact.metadata.pages}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Content */}
+              {selectedArtifact.content && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Content</h3>
+                  <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">
+                      {selectedArtifact.content}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Chunks */}
+              {selectedArtifact.knowledgeChunks && selectedArtifact.knowledgeChunks.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">
+                    Chunks ({selectedArtifact.knowledgeChunks.length})
+                  </h3>
+                  <div className="space-y-4">
+                    {selectedArtifact.knowledgeChunks
+                      .sort((a: any, b: any) => a.chunkIndex - b.chunkIndex)
+                      .map((chunk: any, index: number) => (
+                        <div key={chunk.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs font-medium text-gray-500">Chunk {chunk.chunkIndex + 1}</span>
+                            <span className="text-xs text-gray-400">{chunk.tokenCount} tokens</span>
+                          </div>
+                          <p className="text-sm text-gray-800 whitespace-pre-wrap">{chunk.content}</p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-200 flex-shrink-0 flex justify-end space-x-3">
+              <button
+                onClick={() => handleDownload(selectedArtifact)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium"
+              >
+                Download
+              </button>
+              <button
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setSelectedArtifact(null);
+                }}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
