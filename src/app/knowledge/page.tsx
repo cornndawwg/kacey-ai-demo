@@ -448,9 +448,21 @@ export default function KnowledgePage() {
                       <h3 className="text-lg font-medium text-gray-900 truncate">
                         {artifact.title}
                       </h3>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(artifact.type)}`}>
-                        {artifact.type}
-                      </span>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(artifact.type)}`}>
+                          {artifact.type}
+                        </span>
+                        {artifact.role?.department && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {artifact.role.department.name}
+                          </span>
+                        )}
+                        {artifact.role && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                            {artifact.role.title}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -462,6 +474,18 @@ export default function KnowledgePage() {
                 )}
 
                 <div className="space-y-2 text-sm text-gray-500">
+                  {artifact.role && (
+                    <div className="flex justify-between">
+                      <span>Role:</span>
+                      <span className="font-medium">{artifact.role.title}</span>
+                    </div>
+                  )}
+                  {artifact.role?.department && (
+                    <div className="flex justify-between">
+                      <span>Department:</span>
+                      <span className="font-medium">{artifact.role.department.name}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span>Chunks:</span>
                     <span>{artifact.knowledgeChunks?.length || 0}</span>
