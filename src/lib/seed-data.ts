@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { generateEmbeddingsForArtifact } from './embeddings';
+import { generateEmbeddingsForArtifact, generateEmbeddingsForChunk } from './embeddings';
 
 export async function seedDemoData() {
   try {
