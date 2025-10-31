@@ -26,15 +26,14 @@ async function manualSeed() {
       WHERE table_schema = 'public'
       ORDER BY table_name;
     `;
-    console.log(`Found ${tables.length} tables:`);
     const tableArray = Array.isArray(tables) ? tables : [];
+    console.log(`Found ${tableArray.length} tables:`);
     tableArray.forEach(table => {
       console.log(`  - ${table.table_name}`);
     });
     console.log();
 
     // Step 3: Check if knowledge_chunks exists
-    const tableArray = Array.isArray(tables) ? tables : [];
     const chunksExists = tableArray.some(t => t.table_name === 'knowledge_chunks');
     const artifactsExists = tableArray.some(t => t.table_name === 'knowledge_artifacts');
     const embeddingsExists = tableArray.some(t => t.table_name === 'embeddings');
