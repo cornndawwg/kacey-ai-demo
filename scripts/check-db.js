@@ -25,7 +25,7 @@ async function checkDatabase() {
       ORDER BY table_name;
     `;
     
-    const tableNames = (tables as any[]).map(t => t.table_name);
+    const tableNames = Array.isArray(tables) ? tables.map(t => t.table_name) : [];
     console.log(`   Found ${tableNames.length} tables:`);
     tableNames.forEach(name => console.log(`     - ${name}`));
     console.log();
@@ -44,7 +44,7 @@ async function checkDatabase() {
     const extensions = await prisma.$queryRaw`
       SELECT extname FROM pg_extension;
     `;
-    const extNames = (extensions as any[]).map(e => e.extname);
+    const extNames = Array.isArray(extensions) ? extensions.map(e => e.extname) : [];
     console.log(`   Extensions: ${extNames.join(', ')}`);
     console.log(`   pgvector: ${extNames.includes('vector') ? '✓' : '✗'}`);
     console.log();
@@ -64,10 +64,11 @@ async function checkDatabase() {
         console.log(`   Chunks: ${chunkCount}`);
         
         if (tableNames.includes('embeddings')) {
-          const embeddingCount = await prisma.$queryRaw<Array<{ count: bigint }>>`
+          const embeddingCount = await prisma.$queryRaw`
             SELECT COUNT(*) as count FROM embeddings
           `;
-          console.log(`   Embeddings: ${embeddingCount[0]?.count || 0}`);
+          const embeddingResult = Array.isArray(embeddingCount) ? embeddingCount[0] : null;
+          console.log(`   Embeddings: ${embeddingResult?.count || 0}`);
         } else {
           console.log(`   Embeddings: Table does not exist`);
         }
