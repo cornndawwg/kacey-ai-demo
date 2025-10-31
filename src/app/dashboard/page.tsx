@@ -347,6 +347,13 @@ export default function DashboardPage() {
                     <span>Knowledge Base</span>
                   </a>
                   <a
+                    href="/roles"
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-md text-sm font-medium text-center transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <span>👥</span>
+                    <span>Roles & Departments</span>
+                  </a>
+                  <a
                     href="/chat"
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-md text-sm font-medium text-center transition-colors flex items-center justify-center space-x-2"
                   >

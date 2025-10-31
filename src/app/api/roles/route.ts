@@ -9,6 +9,7 @@ export const GET = withAuth(async (request: NextRequest, user: any) => {
         companyId: user.companyId
       },
       include: {
+        department: true,
         interviewSessions: {
           include: {
             interviewResponses: true
@@ -34,7 +35,7 @@ export const GET = withAuth(async (request: NextRequest, user: any) => {
 export const POST = withAuth(async (request: NextRequest, user: any) => {
   try {
     const body = await request.json();
-    const { title, description } = body;
+    const { title, description, departmentId } = body;
 
     if (!title) {
       return NextResponse.json(
@@ -43,17 +44,46 @@ export const POST = withAuth(async (request: NextRequest, user: any) => {
       );
     }
 
+    // If departmentId is provided, verify it belongs to the user's company
+    if (departmentId) {
+      const department = await prisma.department.findFirst({
+        where: {
+          id: departmentId,
+          companyId: user.companyId
+        }
+      });
+
+      if (!department) {
+        return NextResponse.json(
+          { error: 'Department not found or access denied' },
+          { status: 404 }
+        );
+      }
+    }
+
     const role = await prisma.role.create({
       data: {
         title,
         description,
-        companyId: user.companyId!
+        companyId: user.companyId!,
+        departmentId: departmentId || null
+      },
+      include: {
+        department: true
       }
     });
 
     return NextResponse.json(role, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating role:', error);
+    
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'A role with this title already exists' },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to create role' },
       { status: 500 }

@@ -14,12 +14,13 @@ datasource db {
 }
 
 model Company {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users     User[]
-  roles     Role[]
+  id         String      @id @default(uuid())
+  name       String      @unique
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  users      User[]
+  roles      Role[]
+  departments Department[]
 
   @@map("companies")
 }
@@ -37,12 +38,28 @@ model User {
   @@map("users")
 }
 
+model Department {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  roles       Role[]
+
+  @@unique([name, companyId])
+  @@map("departments")
+}
+
 model Role {
   id                 String              @id @default(uuid())
   title              String
   description        String?
   companyId          String
   company            Company             @relation(fields: [companyId], references: [id])
+  departmentId       String?
+  department         Department?         @relation(fields: [departmentId], references: [id])
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   knowledgeArtifacts KnowledgeArtifact[]
@@ -50,6 +67,7 @@ model Role {
   chatSessions       ChatSession[]
 
   @@unique([title, companyId])
+  @@index([departmentId])
   @@map("roles")
 }
 

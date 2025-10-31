@@ -14,11 +14,23 @@ export interface Company {
   updatedAt: Date;
 }
 
+export interface Department {
+  id: string;
+  name: string;
+  description?: string;
+  companyId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  roles?: Role[];
+}
+
 export interface Role {
   id: string;
   title: string;
   description?: string;
   companyId: string;
+  departmentId?: string;
+  department?: Department;
   createdAt: Date;
   updatedAt: Date;
 }
