@@ -235,7 +235,7 @@ export default function KnowledgePage() {
                 <div className="space-y-2 text-sm text-gray-500">
                   <div className="flex justify-between">
                     <span>Chunks:</span>
-                    <span>{artifact.chunks?.length || 0}</span>
+                    <span>{artifact.knowledgeChunks?.length || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Created:</span>
