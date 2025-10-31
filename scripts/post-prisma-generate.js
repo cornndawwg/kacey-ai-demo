@@ -54,96 +54,98 @@ if (fs.existsSync(packageJsonPath)) {
 const clientTsPath = path.resolve(generatedPath, 'client.ts');
 const clientJsPath = path.resolve(generatedPath, 'client.js');
 
-// If client.ts exists but client.js doesn't, we need to handle it
+// If client.ts exists but client.js doesn't, we need to compile it
 if (clientTsExists && !clientJsExists) {
   console.log('⚠️  client.ts exists but client.js does not - Node.js cannot require .ts files');
-  console.log('Compiling client.ts to client.js using TypeScript...');
+  console.log('Compiling client.ts to client.js using TypeScript compiler...');
   
   try {
-    // Read client.ts content
-    const clientTsContent = fs.readFileSync(clientTsPath, 'utf8');
+    // Use TypeScript compiler to compile client.ts to client.js
+    // First check if tsc is available
+    const tscPath = path.resolve(__dirname, '../node_modules/.bin/tsc');
+    const tscExists = fs.existsSync(tscPath) || require.resolve('typescript');
     
-    // Convert ES module exports to CommonJS
-    // This is a simple conversion - replace export statements with module.exports
-    let clientJsContent = clientTsContent
-      // Replace `export { ... }` with `const exports = { ... }; module.exports = exports;`
-      .replace(/export\s*\{\s*([^}]+)\s*\};?/g, (match, exports) => {
-        const items = exports.split(',').map(e => e.trim()).filter(e => e);
-        let commonjs = 'const __exports = {};\n';
-        items.forEach(item => {
-          const [name, alias] = item.includes(' as ') ? item.split(' as ') : [item, item];
-          commonjs += `__exports['${alias.trim()}'] = ${name.trim()};\n`;
+    if (tscExists) {
+      // Create a temporary tsconfig for compilation
+      const tempTsConfig = {
+        compilerOptions: {
+          target: 'ES2020',
+          module: 'commonjs',
+          lib: ['ES2020'],
+          declaration: false,
+          outDir: generatedPath,
+          rootDir: generatedPath,
+          strict: false,
+          esModuleInterop: true,
+          skipLibCheck: true,
+          forceConsistentCasingInFileNames: true,
+          moduleResolution: 'node',
+          resolveJsonModule: true,
+          isolatedModules: true,
+        },
+        include: ['client.ts'],
+      };
+      
+      const tempTsConfigPath = path.resolve(generatedPath, 'temp-tsconfig.json');
+      fs.writeFileSync(tempTsConfigPath, JSON.stringify(tempTsConfig, null, 2));
+      
+      try {
+        // Try to compile using tsc
+        execSync(`npx tsc --project ${tempTsConfigPath}`, {
+          cwd: generatedPath,
+          stdio: 'pipe',
         });
-        commonjs += 'module.exports = __exports;';
-        return commonjs;
-      })
-      // Replace `export default` with `module.exports =`
-      .replace(/export\s+default\s+/g, 'const __default = ')
-      .replace(/export\s+default\s+(\w+)/g, 'module.exports = $1')
-      // Replace `export const/let/var` with just `const/let/var`
-      .replace(/export\s+(const|let|var|function|class|interface|type)/g, '$1')
-      // Add module.exports at the end if there's a default export pattern
-      .replace(/(const\s+__default\s*=.*?);/g, '$1;\nmodule.exports = __default;');
-    
-    // Check if we successfully converted exports
-    if (!clientJsContent.includes('module.exports')) {
-      // If no module.exports found, try a different approach
-      // Read the actual exports from client.ts
-      const exportMatches = clientTsContent.match(/export\s+(?:default\s+)?(?:const|let|var|function|class|interface|type)\s+(\w+)/g);
-      if (exportMatches) {
-        // Create a simple re-export
-        clientJsContent = `// Auto-generated client.js - converted from client.ts\n`;
-        clientJsContent += `// Original client.ts uses ES modules, this is a CommonJS wrapper\n`;
-        clientJsContent += `// We'll use a workaround - directly require the .ts file and let webpack handle it\n`;
-        clientJsContent += `try {\n`;
-        clientJsContent += `  module.exports = require('./client.ts');\n`;
-        clientJsContent += `} catch (e) {\n`;
-        clientJsContent += `  // Fallback: use dynamic import if available\n`;
-        clientJsContent += `  if (typeof require !== 'undefined' && require.extensions) {\n`;
-        clientJsContent += `    require.extensions['.ts'] = function(module, filename) {\n`;
-        clientJsContent += `      // This will be handled by webpack during build\n`;
-        clientJsContent += `    };\n`;
-        clientJsContent += `  }\n`;
-        clientJsContent += `  module.exports = require('./client.ts');\n`;
-        clientJsContent += `}\n`;
-      } else {
-        // Simple re-export approach
-        clientJsContent = `// Auto-generated client.js wrapper\n`;
-        clientJsContent += `// Re-exports everything from client.ts\n`;
-        clientJsContent += `// Note: This requires webpack to transpile client.ts\n`;
-        clientJsContent += `module.exports = require('./client');\n`;
+        
+        // Check if client.js was created
+        if (fs.existsSync(clientJsPath)) {
+          console.log('✅ Compiled client.ts to client.js using TypeScript');
+          fs.unlinkSync(tempTsConfigPath); // Clean up
+        } else {
+          throw new Error('TypeScript compilation did not produce client.js');
+        }
+      } catch (compileError) {
+        console.log('⚠️  TypeScript compilation failed, using fallback wrapper');
+        fs.unlinkSync(tempTsConfigPath); // Clean up
+        throw compileError;
       }
+    } else {
+      throw new Error('TypeScript compiler not found');
     }
-    
-    // Actually, let's use a simpler approach: create a wrapper that webpack can handle
-    // Webpack will resolve ./client to client.ts and transpile it
-    clientJsContent = `// Auto-generated client.js wrapper for Prisma client
-// This file allows Node.js to require './client' while Prisma generates client.ts
-// IMPORTANT: Webpack will transpile this during build
-// At runtime, we need the actual compiled code, so we'll create a minimal wrapper
-// that webpack can replace with the transpiled version
-
-// Try to require client (webpack will resolve client.ts -> client.js)
-// If that fails, try client.ts directly (webpack should handle it)
-try {
-  module.exports = require('./client');
-} catch (e) {
-  // During build, webpack should handle this
-  // At runtime, this shouldn't execute if webpack did its job
-  throw new Error('Cannot load Prisma client. Make sure webpack has transpiled client.ts to client.js');
-}
-`;
-    
-    fs.writeFileSync(clientJsPath, clientJsContent);
-    console.log('✅ Created client.js wrapper (will be transpiled by webpack)');
   } catch (error) {
-    console.error('❌ Error creating client.js:', error);
-    // Fallback: create minimal wrapper
-    const fallbackContent = `// Auto-generated client.js wrapper
-module.exports = require('./client');
+    console.log('⚠️  Could not compile client.ts, creating CommonJS wrapper');
+    // Fallback: create a wrapper that uses the internal models/index that Prisma generates
+    // Prisma generates client.ts but also generates compiled files in the internal directory
+    const modelsPath = path.resolve(generatedPath, 'models');
+    if (fs.existsSync(modelsPath)) {
+      // Try to use models/index.js or models/index.ts
+      const modelsIndexJs = path.resolve(modelsPath, 'index.js');
+      const modelsIndexTs = path.resolve(modelsPath, 'index.ts');
+      
+      if (fs.existsSync(modelsIndexJs)) {
+        const clientJsContent = `// Auto-generated client.js wrapper for Prisma client
+// Re-exports from Prisma's generated models
+module.exports = require('./models/index');
 `;
-    fs.writeFileSync(clientJsPath, fallbackContent);
-    console.log('⚠️  Created fallback client.js wrapper');
+        fs.writeFileSync(clientJsPath, clientJsContent);
+        console.log('✅ Created client.js wrapper using models/index.js');
+      } else {
+        // Final fallback: simple re-export (webpack will need to handle this)
+        const clientJsContent = `// Auto-generated client.js wrapper for Prisma client
+// WARNING: This requires webpack to transpile client.ts during build
+// If you see errors, ensure webpack is configured to handle .ts files in .prisma/client
+module.exports = require('./client.ts');
+`;
+        fs.writeFileSync(clientJsPath, clientJsContent);
+        console.log('⚠️  Created fallback client.js wrapper (requires webpack transpilation)');
+      }
+    } else {
+      // Last resort fallback
+      const clientJsContent = `// Auto-generated client.js wrapper
+module.exports = require('./client.ts');
+`;
+      fs.writeFileSync(clientJsPath, clientJsContent);
+      console.log('⚠️  Created minimal client.js wrapper');
+    }
   }
 }
 
