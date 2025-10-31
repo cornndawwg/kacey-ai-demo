@@ -122,16 +122,11 @@ async function manualSeed() {
     console.log(`  Embeddings: ${embeddingCount[0]?.count || 0}`);
     console.log();
 
-    // Step 8: Run seed
+    // Step 8: Run seed via API or manually
     console.log('Step 8: Running seed data...');
-    console.log('(Importing seedDemoData function...)');
-    
-    // We'll need to import this properly
-    const { seedDemoData } = require('../src/lib/seed-data.ts');
-    const result = await seedDemoData();
-    
-    console.log('✓ Seed data completed');
-    console.log(`  Result:`, result);
+    console.log('(You can run the seed via the API endpoint /api/seed-db or manually)');
+    console.log('For manual seeding, use: curl -X POST http://localhost:8080/api/seed-db');
+    console.log('Or call the seed endpoint from the application UI');
     console.log();
 
     // Step 9: Verify seed results
