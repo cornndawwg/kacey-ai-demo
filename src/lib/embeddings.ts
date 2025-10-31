@@ -34,10 +34,11 @@ export async function generateEmbeddingsForChunk(chunkId: string): Promise<void>
     const embedding = await generateEmbedding(chunk.content);
 
     // Store in database with pgvector
+    // Use chunkId as id for ON CONFLICT to work properly
     await prisma.$executeRaw`
       INSERT INTO embeddings (id, "chunkId", vector, model, "createdAt")
       VALUES (${chunkId}, ${chunkId}, ${JSON.stringify(embedding)}::vector, 'text-embedding-3-small', NOW())
-      ON CONFLICT (id) DO UPDATE SET
+      ON CONFLICT ("chunkId") DO UPDATE SET
         vector = ${JSON.stringify(embedding)}::vector,
         model = 'text-embedding-3-small'
     `;

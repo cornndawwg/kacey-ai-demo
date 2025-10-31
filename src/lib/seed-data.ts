@@ -144,14 +144,41 @@ Budget Allocation:
       }
     ];
 
-    // Create artifacts
+    // Create or update artifacts (prevent duplicates)
     for (const artifactData of artifacts) {
-      const artifact = await prisma.knowledgeArtifact.create({
-        data: {
-          ...artifactData,
+      // Check if artifact already exists
+      const existingArtifact = await prisma.knowledgeArtifact.findFirst({
+        where: {
+          title: artifactData.title,
           roleId: role.id
         }
       });
+
+      let artifact;
+      if (existingArtifact) {
+        // Update existing artifact
+        artifact = await prisma.knowledgeArtifact.update({
+          where: { id: existingArtifact.id },
+          data: {
+            description: artifactData.description,
+            type: artifactData.type,
+            content: artifactData.content,
+            metadata: artifactData.metadata
+          }
+        });
+        // Delete old chunks to recreate them
+        await prisma.knowledgeChunk.deleteMany({
+          where: { artifactId: artifact.id }
+        });
+      } else {
+        // Create new artifact
+        artifact = await prisma.knowledgeArtifact.create({
+          data: {
+            ...artifactData,
+            roleId: role.id
+          }
+        });
+      }
 
       // Create chunks
       const chunks = artifactData.content.split('\n\n').map((chunk, index) => ({
@@ -216,8 +243,21 @@ Budget Allocation:
         // Continue anyway - might already exist
       }
 
-      // Generate embeddings
-      await generateEmbeddingsForArtifact(artifact.id);
+      // Generate embeddings for all chunks
+      const artifactChunks = await prisma.knowledgeChunk.findMany({
+        where: { artifactId: artifact.id }
+      });
+      
+      console.log(`Generating embeddings for ${artifactChunks.length} chunks in artifact: ${artifact.title}`);
+      for (const chunk of artifactChunks) {
+        try {
+          await generateEmbeddingsForChunk(chunk.id);
+        } catch (error) {
+          console.error(`Error generating embedding for chunk ${chunk.id}:`, error);
+          // Continue with other chunks
+        }
+      }
+      console.log(`Finished generating embeddings for artifact: ${artifact.title}`);
     }
 
     // Create sample interview session
