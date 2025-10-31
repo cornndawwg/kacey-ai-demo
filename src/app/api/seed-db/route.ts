@@ -23,6 +23,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ensure schema exists by pushing it
+    try {
+      console.log('Pushing database schema...');
+      const { execSync } = require('child_process');
+      execSync('npx prisma db push --accept-data-loss --skip-generate', { 
+        stdio: 'inherit',
+        env: process.env
+      });
+      console.log('Database schema pushed successfully');
+    } catch (pushError: any) {
+      console.error('Error pushing database schema:', pushError);
+      // Continue anyway - might already be in sync
+    }
+
     // Try to query a table to see if schema exists
     try {
       await prisma.company.findFirst();
@@ -30,10 +44,10 @@ export async function POST(request: NextRequest) {
     } catch (schemaError: any) {
       // If schema doesn't exist, try to inform user
       if (schemaError.code === 'P2021' || schemaError.message?.includes('does not exist')) {
-        console.error('Database tables do not exist. Please run: npx prisma db push');
+        console.error('Database tables do not exist even after push. This is a serious error.');
         return NextResponse.json(
-          { 
-            success: false, 
+          {
+            success: false,
             error: 'Database tables do not exist',
             details: 'Please ensure the database schema has been pushed. Run: npx prisma db push',
             hint: 'On Railway, you may need to run prisma db push during deployment'
