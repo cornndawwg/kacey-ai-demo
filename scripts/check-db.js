@@ -30,12 +30,15 @@ async function checkDatabase() {
     tableNames.forEach(name => console.log(`     - ${name}`));
     console.log();
 
-    // Check critical tables
+    // Check critical tables (both lowercase and capitalized versions)
     console.log('3. Critical Tables Status:');
     const criticalTables = ['knowledge_chunks', 'knowledge_artifacts', 'embeddings', 'roles', 'users', 'companies'];
-    for (const tableName of criticalTables) {
-      const exists = tableNames.includes(tableName);
-      console.log(`   ${exists ? '✓' : '✗'} ${tableName}`);
+    const criticalTablesUpper = ['KnowledgeChunk', 'KnowledgeArtifact', 'Embedding', 'Role', 'User', 'Company'];
+    for (let i = 0; i < criticalTables.length; i++) {
+      const tableName = criticalTables[i];
+      const tableNameUpper = criticalTablesUpper[i];
+      const exists = tableNames.includes(tableName) || tableNames.includes(tableNameUpper);
+      console.log(`   ${exists ? '✓' : '✗'} ${tableName} ${exists && tableNames.includes(tableNameUpper) ? '(found as ' + tableNameUpper + ')' : ''}`);
     }
     console.log();
 
