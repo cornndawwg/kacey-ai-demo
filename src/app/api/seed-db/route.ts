@@ -7,6 +7,20 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Starting database seeding...');
 
+    // Ensure database tables exist by running db push
+    console.log('Pushing database schema...');
+    const { execSync } = require('child_process');
+    try {
+      execSync('npx prisma db push --skip-generate', { 
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+      console.log('Database schema pushed successfully');
+    } catch (dbPushError) {
+      console.error('Error pushing database schema:', dbPushError);
+      // Continue anyway - tables might already exist
+    }
+
     // Create demo company
     const company = await prisma.company.upsert({
       where: { name: 'TechCorp Demo' },
@@ -64,11 +78,13 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error seeding database:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to seed database',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
       },
       { status: 500 }
     );
