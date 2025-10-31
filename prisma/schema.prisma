@@ -31,6 +31,8 @@ model User {
   company   Company? @relation(fields: [companyId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("users")
 }
 
 model Role {
@@ -46,6 +48,7 @@ model Role {
   chatSessions       ChatSession[]
 
   @@unique([title, companyId])
+  @@map("roles")
 }
 
 model KnowledgeArtifact {
@@ -61,6 +64,8 @@ model KnowledgeArtifact {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   knowledgeChunks KnowledgeChunk[]
+
+  @@map("knowledge_artifacts")
 }
 
 model KnowledgeChunk {
@@ -75,6 +80,7 @@ model KnowledgeChunk {
   embeddings Embedding[]
 
   @@index([artifactId])
+  @@map("knowledge_chunks")
 }
 
 model Embedding {
@@ -86,6 +92,7 @@ model Embedding {
   createdAt DateTime       @default(now())
 
   @@index([chunkId])
+  @@map("embeddings")
 }
 
 model InterviewSession {
@@ -101,6 +108,7 @@ model InterviewSession {
   interviewResponses InterviewResponse[]
 
   @@index([roleId, status])
+  @@map("interview_sessions")
 }
 
 model InterviewResponse {
@@ -118,6 +126,7 @@ model InterviewResponse {
   updatedAt  DateTime         @updatedAt
 
   @@index([sessionId])
+  @@map("interview_responses")
 }
 
 model ChatSession {
@@ -130,6 +139,7 @@ model ChatSession {
   chatMessages ChatMessage[]
 
   @@index([roleId])
+  @@map("chat_sessions")
 }
 
 model ChatMessage {
@@ -143,4 +153,5 @@ model ChatMessage {
   createdAt  DateTime    @default(now())
 
   @@index([sessionId])
+  @@map("chat_messages")
 }
