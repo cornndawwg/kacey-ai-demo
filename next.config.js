@@ -38,11 +38,11 @@ const nextConfig = {
       return rule;
     });
     
-    // Ensure proper module interop between CommonJS and ES modules
-    // This allows default.js (CommonJS) to require index.js (ES modules)
-    config.experiments = {
-      ...config.experiments,
-      outputModule: false, // Keep CommonJS output for compatibility
+    // Configure webpack to handle TypeScript files in .prisma/client
+    // This ensures client.ts is transpiled to CommonJS when required by index.js
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
     };
     
     return config;
