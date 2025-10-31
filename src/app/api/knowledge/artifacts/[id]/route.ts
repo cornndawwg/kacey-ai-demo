@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withAuth } from '@/lib/middleware';
+import { verifyToken, getTokenFromRequest } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export const GET = withAuth(async (
+export async function GET(
   request: NextRequest,
-  user: any,
-  { params }: { params: { id: string } }
-) => {
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   try {
-    const artifactId = params.id;
+    // Handle both Promise and direct params (Next.js 14+ vs 13)
+    const resolvedParams = params instanceof Promise ? await params : params;
+    const artifactId = resolvedParams.id;
+
+    // Authenticate user
+    const token = getTokenFromRequest(request);
+    
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const user = verifyToken(token);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      );
+    }
 
     if (!artifactId) {
       return NextResponse.json(
@@ -48,5 +67,4 @@ export const GET = withAuth(async (
       { status: 500 }
     );
   }
-});
-
+}
