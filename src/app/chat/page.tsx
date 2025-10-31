@@ -12,6 +12,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -25,6 +26,7 @@ export default function ChatPage() {
     try {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
+      loadRoles();
       loadSessions();
     } catch (error) {
       console.error('Error parsing user data:', error);
@@ -33,6 +35,24 @@ export default function ChatPage() {
       setIsLoading(false);
     }
   }, [router]);
+
+  const loadRoles = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/roles', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableRoles(data);
+      }
+    } catch (error) {
+      console.error('Error loading roles:', error);
+    }
+  };
 
   const loadSessions = async () => {
     try {
@@ -58,6 +78,13 @@ export default function ChatPage() {
 
   const createNewSession = async () => {
     try {
+      // Get the first available role, or show error if none
+      if (availableRoles.length === 0) {
+        alert('No roles available. Please seed the database first.');
+        return;
+      }
+
+      const roleId = availableRoles[0].id;
       const token = localStorage.getItem('token');
       const response = await fetch('/api/chat/sessions', {
         method: 'POST',
@@ -66,8 +93,8 @@ export default function ChatPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          roleId: 'demo-role-id', // This would be dynamic in a real app
-          title: 'New Chat Session'
+          roleId: roleId,
+          title: `Chat with ${availableRoles[0].title}`
         })
       });
 
@@ -76,25 +103,32 @@ export default function ChatPage() {
         setSessions(prev => [newSession, ...prev]);
         setCurrentSession(newSession);
         setMessages([]);
+      } else {
+        const error = await response.json();
+        console.error('Error creating session:', error);
+        alert('Failed to create chat session: ' + (error.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error creating session:', error);
+      alert('Failed to create chat session');
     }
   };
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || !currentSession || isSending) return;
+    const messageToSend = inputMessage.trim();
+    if (!messageToSend || !currentSession || isSending) return;
 
     setIsSending(true);
     const userMessage = {
       id: Date.now().toString(),
       sessionId: currentSession.id,
       role: 'USER' as const,
-      content: inputMessage,
+      content: messageToSend,
       createdAt: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageText = messageToSend; // Save before clearing
     setInputMessage('');
 
     try {
@@ -107,17 +141,31 @@ export default function ChatPage() {
         },
         body: JSON.stringify({
           sessionId: currentSession.id,
-          message: inputMessage,
+          message: messageText,
           roleId: currentSession.roleId
         })
       });
 
       if (response.ok) {
         const data = await response.json();
-        setMessages(prev => [...prev, data.assistantMessage]);
+        // Add assistant message to the messages list
+        if (data.assistantMessage) {
+          setMessages(prev => [...prev, {
+            id: data.assistantMessage.id,
+            sessionId: data.assistantMessage.sessionId,
+            role: data.assistantMessage.role,
+            content: data.assistantMessage.content,
+            sources: data.assistantMessage.sources || data.sources,
+            confidence: data.assistantMessage.confidence,
+            createdAt: new Date(data.assistantMessage.createdAt)
+          }]);
+        }
+        // Reload sessions to get updated messages
+        loadSessions();
       } else {
         const error = await response.json();
         console.error('Error sending message:', error);
+        alert('Failed to send message: ' + (error.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -223,7 +271,14 @@ export default function ChatPage() {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {messages.length === 0 ? (
+                  {!currentSession ? (
+                    <div className="text-center text-gray-500 mt-8">
+                      <p>Create a new chat session to get started.</p>
+                      <p className="text-sm mt-2">
+                        Click "New Chat" in the sidebar to begin.
+                      </p>
+                    </div>
+                  ) : messages.length === 0 ? (
                     <div className="text-center text-gray-500 mt-8">
                       <p>Start a conversation by typing a message below.</p>
                       <p className="text-sm mt-2">
@@ -249,11 +304,11 @@ export default function ChatPage() {
                             {message.content}
                           </div>
                           {message.sources && message.sources.length > 0 && (
-                            <div className="mt-2 text-xs opacity-75">
-                              <div>Sources:</div>
-                              {message.sources.map((source, index) => (
+                            <div className={`mt-2 text-xs ${message.role === 'USER' ? 'opacity-75' : 'text-gray-600'}`}>
+                              <div className="font-semibold mb-1">Sources:</div>
+                              {message.sources.map((source: any, index: number) => (
                                 <div key={index} className="truncate">
-                                  {source?.artifactTitle || `Source ${index + 1}`}
+                                  {source?.artifactTitle || source?.title || `Source ${index + 1}`}
                                 </div>
                               ))}
                             </div>
