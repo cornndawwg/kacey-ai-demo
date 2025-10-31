@@ -69,23 +69,24 @@ export * from './client';
 
 // Now create default.js that re-exports from index.js (or client.js if index doesn't exist)
 // The default.js file is what @prisma/client/default.js requires
-// Note: @prisma/client uses CommonJS, so default.js must use CommonJS
-// But we'll use a dynamic import or re-export pattern that works with ES modules
+// CRITICAL: @prisma/client/default.js uses CommonJS (require()), so default.js MUST be CommonJS
+// But index.js uses ES modules, so we need to handle the interop
 let defaultContent;
 if (indexJsExists || (!indexJsExists && clientTsExists)) {
   // Use index.js as the entry point (this is what Prisma expects)
-  // Since index.js uses ES modules, we need to handle this carefully
-  // We'll use a pattern that works with both CommonJS and ES modules
+  // default.js must be CommonJS since it's required by CommonJS code
+  // We'll use a pattern that loads the ES module using createRequire or similar
+  // Actually, webpack/Next.js should handle this, but let's use a compatible pattern
   defaultContent = `// Auto-generated file for @prisma/client compatibility with custom output path
 // This file allows @prisma/client/default.js to require('.prisma/client/default')
-// Using ES modules to match index.js
-export * from './index';
+// CRITICAL: Must be CommonJS since it's required by @prisma/client (CommonJS)
+// The actual module is ES modules, but webpack will handle the interop
+module.exports = require('./index');
 `;
 } else if (clientJsExists) {
   // Fallback to client.js if index.js doesn't exist
   defaultContent = `// Auto-generated file for @prisma/client compatibility with custom output path
-// Using ES modules to match client.js (if it uses ES modules)
-export * from './client';
+module.exports = require('./client');
 `;
 } else {
   console.error('❌ No suitable entry point found (index.js, client.js, or client.ts)');

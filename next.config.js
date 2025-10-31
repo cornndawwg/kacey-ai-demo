@@ -38,6 +38,13 @@ const nextConfig = {
       return rule;
     });
     
+    // Ensure proper module interop between CommonJS and ES modules
+    // This allows default.js (CommonJS) to require index.js (ES modules)
+    config.experiments = {
+      ...config.experiments,
+      outputModule: false, // Keep CommonJS output for compatibility
+    };
+    
     return config;
   },
 }
