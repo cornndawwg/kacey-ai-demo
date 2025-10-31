@@ -1,34 +1,27 @@
-import OpenAI from 'openai';
 import { TranscriptionResult } from '@/types';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export async function transcribeAudio(audioBlob: Blob): Promise<TranscriptionResult> {
   try {
     const formData = new FormData();
     formData.append('file', audioBlob, 'audio.webm');
-    formData.append('model', 'whisper-1');
-    formData.append('response_format', 'verbose_json');
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    // Call the API route instead of direct OpenAI API call
+    // This keeps the API key server-side only
+    const response = await fetch('/api/transcription', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error(`Transcription failed: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({ error: 'Transcription failed' }));
+      throw new Error(errorData.error || `Transcription failed: ${response.statusText}`);
     }
 
     const result = await response.json();
     
     return {
-      text: result.text,
-      confidence: 0.9, // Whisper doesn't provide confidence scores, using default
+      text: result.text || result.transcript || '',
+      confidence: result.confidence || 0.9,
       language: result.language || 'en'
     };
   } catch (error) {
