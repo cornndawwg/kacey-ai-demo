@@ -27,7 +27,8 @@ async function manualSeed() {
       ORDER BY table_name;
     `;
     console.log(`Found ${tables.length} tables:`);
-    tables.forEach((table: any) => {
+    const tableArray = Array.isArray(tables) ? tables : [];
+    tableArray.forEach(table => {
       console.log(`  - ${table.table_name}`);
     });
     console.log();
@@ -120,7 +121,8 @@ async function manualSeed() {
     console.log(`  Roles: ${roleCount}`);
     console.log(`  Artifacts: ${artifactCount}`);
     console.log(`  Chunks: ${chunkCount}`);
-    console.log(`  Embeddings: ${embeddingCount[0]?.count || 0}`);
+    const embeddingResult = Array.isArray(embeddingCount) ? embeddingCount[0] : null;
+    console.log(`  Embeddings: ${embeddingResult?.count || 0}`);
     console.log();
 
     // Step 8: Run seed via API or manually
@@ -134,13 +136,14 @@ async function manualSeed() {
     console.log('Step 9: Verifying seed results...');
     const finalArtifactCount = await prisma.knowledgeArtifact.count();
     const finalChunkCount = await prisma.knowledgeChunk.count();
-    const finalEmbeddingCount = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    const finalEmbeddingCount = await prisma.$queryRaw`
       SELECT COUNT(*) as count FROM embeddings
     `;
+    const finalEmbeddingResult = Array.isArray(finalEmbeddingCount) ? finalEmbeddingCount[0] : null;
 
     console.log(`  Artifacts: ${finalArtifactCount} (was ${artifactCount})`);
     console.log(`  Chunks: ${finalChunkCount} (was ${chunkCount})`);
-    console.log(`  Embeddings: ${finalEmbeddingCount[0]?.count || 0} (was ${embeddingCount[0]?.count || 0})`);
+    console.log(`  Embeddings: ${finalEmbeddingResult?.count || 0} (was ${embeddingResult?.count || 0})`);
     console.log();
 
     console.log('=== Seeding Complete ===');
