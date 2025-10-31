@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const generatedPath = path.resolve(__dirname, '../node_modules/.prisma/client');
 const defaultJsPath = path.resolve(generatedPath, 'default.js');
@@ -26,6 +27,7 @@ console.log('Files in generated client:', files.slice(0, 10));
 
 // Prisma generates client.ts, but Node.js needs JS at runtime
 // Check what files exist and find the actual entry point
+// Note: We may need to create client.js from client.ts
 const clientJsExists = files.includes('client.js');
 const clientTsExists = files.includes('client.ts');
 const indexJsExists = files.includes('index.js');
@@ -42,17 +44,42 @@ if (fs.existsSync(packageJsonPath)) {
   console.log('package.json exports:', packageJson.exports);
 }
 
+// Prisma generates client.ts but Node.js needs client.js at runtime
+// We need to compile client.ts to client.js, or create a wrapper
+// Since TypeScript is available, let's check if we can use ts-node or just create a wrapper
+// Actually, let's try a different approach: create index.js that directly re-exports
+// from the models/index that Prisma generates, or we compile client.ts
+
+// First, let's check if we can find what Prisma actually exports
+const clientTsPath = path.resolve(generatedPath, 'client.ts');
+const clientJsPath = path.resolve(generatedPath, 'client.js');
+
+// If client.ts exists but client.js doesn't, we need to handle it
+if (clientTsExists && !clientJsExists) {
+  console.log('⚠️  client.ts exists but client.js does not - Node.js cannot require .ts files');
+  console.log('Creating client.js wrapper that exports from client.ts via dynamic import...');
+  
+  // Create a client.js that uses dynamic import to load client.ts
+  // This works because webpack will transpile client.ts
+  const clientJsContent = `// Auto-generated client.js wrapper for Prisma client
+// This file allows Node.js to require './client' while Prisma generates client.ts
+// During build, webpack will transpile client.ts and this wrapper will work
+// For now, we'll re-export directly - webpack handles the transpilation
+module.exports = require('./client.ts');
+`;
+  
+  fs.writeFileSync(clientJsPath, clientJsContent);
+  console.log('✅ Created client.js wrapper');
+}
+
 // Prisma with custom output path should generate index.js that re-exports from client
 // If index.js doesn't exist, we need to create it
-if (!indexJsExists && clientTsExists) {
-  // Create index.js that re-exports from client.ts
-  // We need CommonJS format since default.js (CommonJS) will require this
-  // Webpack will handle transpiling client.ts at build time
-  // At runtime during build, we use require() which webpack will resolve correctly
+if (!indexJsExists && (clientJsExists || clientTsExists)) {
+  // Create index.js that re-exports from client
+  // Now we can require './client' because we created client.js above
   const indexContent = `// Auto-generated index.js for Prisma client
-// This file re-exports from client.ts, which is the generated Prisma client
+// This file re-exports from client, which is the generated Prisma client
 // Using CommonJS format since this will be required by default.js (CommonJS)
-// Webpack will transpile client.ts at build time and resolve this correctly
 module.exports = require('./client');
 `;
   const indexJsPath = path.resolve(generatedPath, 'index.js');

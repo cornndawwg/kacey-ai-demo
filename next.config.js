@@ -39,7 +39,10 @@ const nextConfig = {
     });
     
     // Configure webpack to handle TypeScript files in .prisma/client
-    // This ensures client.ts is transpiled to CommonJS when required by index.js
+    // This ensures client.ts is transpiled to CommonJS when required
+    config.resolve.extensions = [...(config.resolve.extensions || []), '.ts', '.tsx'];
+    
+    // Allow requiring .ts files as if they were .js (webpack will transpile them)
     config.resolve.extensionAlias = {
       ...config.resolve.extensionAlias,
       '.js': ['.ts', '.tsx', '.js', '.jsx'],
