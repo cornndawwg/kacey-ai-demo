@@ -33,9 +33,10 @@ async function manualSeed() {
     console.log();
 
     // Step 3: Check if knowledge_chunks exists
-    const chunksExists = tables.some((t: any) => t.table_name === 'knowledge_chunks');
-    const artifactsExists = tables.some((t: any) => t.table_name === 'knowledge_artifacts');
-    const embeddingsExists = tables.some((t: any) => t.table_name === 'embeddings');
+    const tableArray = Array.isArray(tables) ? tables : [];
+    const chunksExists = tableArray.some(t => t.table_name === 'knowledge_chunks');
+    const artifactsExists = tableArray.some(t => t.table_name === 'knowledge_artifacts');
+    const embeddingsExists = tableArray.some(t => t.table_name === 'embeddings');
 
     console.log('Step 3: Checking critical tables...');
     console.log(`  knowledge_chunks: ${chunksExists ? '✓' : '✗'}`);
@@ -111,7 +112,7 @@ async function manualSeed() {
     const roleCount = await prisma.role.count();
     const artifactCount = await prisma.knowledgeArtifact.count();
     const chunkCount = await prisma.knowledgeChunk.count();
-    const embeddingCount = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    const embeddingCount = await prisma.$queryRaw`
       SELECT COUNT(*) as count FROM embeddings
     `;
 
