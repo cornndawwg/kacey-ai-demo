@@ -45,21 +45,17 @@ if (fs.existsSync(packageJsonPath)) {
 // Prisma with custom output path should generate index.js that re-exports from client
 // If index.js doesn't exist, we need to create it
 if (!indexJsExists && clientTsExists) {
-  // Create index.js that re-exports from client.ts
-  // Since Prisma generates client.ts, we need to handle the TypeScript file
-  // Next.js/SWC should transpile this at build time, but at runtime we need JS
-  // We'll create index.js that requires client, which should work if Next.js transpiles it
-  // If that doesn't work, we might need to manually transpile or use a different approach
+  // Create index.js that re-exports from client.ts using ES modules
+  // Since client.ts uses ES modules (import/export), we need to use ES modules here too
+  // Next.js/SWC will handle the TypeScript transpilation, but the module syntax must match
   const indexContent = `// Auto-generated index.js for Prisma client
 // This file re-exports from client.ts, which is the generated Prisma client
-// Note: client.ts should be transpiled by Next.js/SWC during build
-// At runtime, Node.js will look for client.js, but Next.js handles the TS->JS conversion
-const client = require('./client.ts');
-module.exports = client;
+// Using ES modules to match client.ts syntax
+export * from './client';
 `;
   const indexJsPath = path.resolve(generatedPath, 'index.js');
   fs.writeFileSync(indexJsPath, indexContent);
-  console.log('✅ Created index.js that re-exports from client');
+  console.log('✅ Created index.js (ES modules) that re-exports from client');
   
   // Also create index.d.ts for TypeScript
   if (fs.existsSync(path.resolve(generatedPath, 'client.ts'))) {
@@ -73,17 +69,23 @@ export * from './client';
 
 // Now create default.js that re-exports from index.js (or client.js if index doesn't exist)
 // The default.js file is what @prisma/client/default.js requires
+// Note: @prisma/client uses CommonJS, so default.js must use CommonJS
+// But we'll use a dynamic import or re-export pattern that works with ES modules
 let defaultContent;
 if (indexJsExists || (!indexJsExists && clientTsExists)) {
   // Use index.js as the entry point (this is what Prisma expects)
+  // Since index.js uses ES modules, we need to handle this carefully
+  // We'll use a pattern that works with both CommonJS and ES modules
   defaultContent = `// Auto-generated file for @prisma/client compatibility with custom output path
 // This file allows @prisma/client/default.js to require('.prisma/client/default')
-module.exports = require('./index');
+// Using ES modules to match index.js
+export * from './index';
 `;
 } else if (clientJsExists) {
   // Fallback to client.js if index.js doesn't exist
   defaultContent = `// Auto-generated file for @prisma/client compatibility with custom output path
-module.exports = require('./client');
+// Using ES modules to match client.js (if it uses ES modules)
+export * from './client';
 `;
 } else {
   console.error('❌ No suitable entry point found (index.js, client.js, or client.ts)');
