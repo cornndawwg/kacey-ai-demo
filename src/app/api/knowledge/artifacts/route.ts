@@ -53,6 +53,19 @@ export const POST = withAuth(async (request: NextRequest, user: any) => {
 
     const createdChunks = await Promise.all(chunkPromises);
 
+    // Generate embeddings for all chunks in the background
+    // Import embeddings module dynamically to avoid circular dependencies
+    try {
+      const { generateEmbeddingsForArtifact } = await import('@/lib/embeddings');
+      // Generate embeddings asynchronously (don't await to avoid blocking response)
+      generateEmbeddingsForArtifact(artifact.id).catch((error) => {
+        console.error('Error generating embeddings (non-blocking):', error);
+        // Continue anyway - embeddings can be generated later
+      });
+    } catch (error) {
+      console.error('Error importing embeddings module (non-blocking):', error);
+    }
+
     return NextResponse.json({
       artifact,
       chunks: createdChunks,
