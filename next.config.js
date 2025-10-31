@@ -1,54 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['pdf-parse', 'mammoth', 'xlsx', 'cheerio', '@prisma/client', '.prisma/client'],
-  webpack: (config) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-      path: false,
-      os: false,
-    };
-    // Map @prisma/client and .prisma/client to generated location for custom output path
-    const prismaClientPath = require('path').resolve(__dirname, 'node_modules/.prisma/client');
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@prisma/client': prismaClientPath,
-      // Alias .prisma/client (used by @prisma/client internal requires)
-      '.prisma/client': prismaClientPath,
-      // Also alias the specific default path that @prisma/client/default.js requires
-      '.prisma/client/default': require('path').resolve(prismaClientPath, 'default'),
-    };
-    
-    // Enable transpilation of TypeScript files in .prisma/client
-    // Next.js will use SWC to transpile these files
-    config.module = config.module || {};
-    const originalRules = config.module.rules || [];
-    
-    // Find the TypeScript rule and modify it to include .prisma/client
-    config.module.rules = originalRules.map((rule) => {
-      if (rule && rule.test && rule.test.toString().includes('tsx?') && rule.use && Array.isArray(rule.use)) {
-        return {
-          ...rule,
-          include: [
-            ...(rule.include || []),
-            prismaClientPath,
-          ],
-        };
-      }
-      return rule;
-    });
-    
-    // Configure webpack to handle TypeScript files in .prisma/client
-    // This ensures client.ts is transpiled to CommonJS when required
-    config.resolve.extensions = [...(config.resolve.extensions || []), '.ts', '.tsx'];
-    
-    // Allow requiring .ts files as if they were .js (webpack will transpile them)
-    config.resolve.extensionAlias = {
-      ...config.resolve.extensionAlias,
-      '.js': ['.ts', '.tsx', '.js', '.jsx'],
-    };
-    
-    return config;
+  // External packages that should not be bundled (server-side only)
+  serverExternalPackages: [
+    'pdf-parse',
+    'mammoth',
+    'xlsx',
+    'cheerio',
+    '@prisma/client',
+  ],
+  
+  // Turbopack configuration (Next.js 16 default)
+  turbopack: {
+    // Empty config to silence the Turbopack/webpack warning
+    // Turbopack handles most things automatically
   },
 }
 
