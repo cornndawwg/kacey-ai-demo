@@ -68,6 +68,11 @@ export default function InterviewPage() {
     try {
       const token = localStorage.getItem('token');
       
+      // Check for roleId in URL params (from resume link)
+      const urlParams = new URLSearchParams(window.location.search);
+      const resumeRoleId = urlParams.get('roleId');
+      const targetRoleId = resumeRoleId || roleId;
+      
       // Try to find existing IN_PROGRESS session for this role
       const sessionsResponse = await fetch('/api/interview/sessions', {
         headers: {
@@ -78,8 +83,12 @@ export default function InterviewPage() {
       if (sessionsResponse.ok) {
         const sessions = await sessionsResponse.json();
         const existingSession = sessions.find((s: any) => 
-          s.roleId === roleId && s.status === 'IN_PROGRESS'
+          s.roleId === targetRoleId && s.status === 'IN_PROGRESS'
         );
+        
+        if (targetRoleId && targetRoleId !== selectedRoleId) {
+          setSelectedRoleId(targetRoleId);
+        }
 
         if (existingSession) {
           setInterviewSession(existingSession);
@@ -132,7 +141,7 @@ export default function InterviewPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          roleId: roleId,
+          roleId: targetRoleId,
           phase: 'DISCOVERY_HR'
         })
       });

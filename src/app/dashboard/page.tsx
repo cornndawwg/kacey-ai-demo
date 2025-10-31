@@ -82,29 +82,49 @@ export default function DashboardPage() {
               </p>
               <div className="space-y-4">
                 {user.role === 'ADMIN' && (
-                  <div className="space-x-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <a
                       href="/interview"
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium text-center"
                     >
                       Start Interview Process
                     </a>
                     <a
+                      href="/interviews"
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium text-center"
+                    >
+                      Manage Interviews
+                    </a>
+                    <a
                       href="/knowledge"
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium text-center"
                     >
                       Manage Knowledge Base
                     </a>
+                    <a
+                      href="/chat"
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium text-center"
+                    >
+                      AI Chat Interface
+                    </a>
                   </div>
                 )}
-                <div>
-                  <a
-                    href="/chat"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                  >
-                    AI Chat Interface
-                  </a>
-                </div>
+                {user.role === 'EMPLOYEE' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <a
+                      href="/chat"
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium text-center"
+                    >
+                      AI Chat Interface
+                    </a>
+                    <a
+                      href="/knowledge"
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium text-center"
+                    >
+                      Browse Knowledge Base
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           </div>
