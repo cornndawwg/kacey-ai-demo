@@ -44,6 +44,64 @@ export async function POST(request: NextRequest) {
       throw schemaError;
     }
 
+    // Ensure pgvector extension is enabled and embeddings table has vector type
+    try {
+      console.log('Setting up pgvector extension...');
+      // Enable pgvector extension
+      await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS vector;`;
+      
+      // Check if embeddings table exists and has the correct structure
+      const tableExists = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'embeddings'
+        );
+      `;
+      
+      const exists = (tableExists as any[])[0]?.exists;
+      
+      if (!exists) {
+        // Create embeddings table with vector type
+        console.log('Creating embeddings table with vector type...');
+        await prisma.$executeRaw`
+          CREATE TABLE IF NOT EXISTS embeddings (
+            id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            "chunkId" TEXT UNIQUE NOT NULL,
+            vector vector(1536),
+            model TEXT DEFAULT 'text-embedding-3-small',
+            "createdAt" TIMESTAMP DEFAULT NOW(),
+            CONSTRAINT embeddings_chunkId_fkey FOREIGN KEY ("chunkId") REFERENCES knowledge_chunks(id) ON DELETE CASCADE
+          );
+        `;
+        
+        // Create index
+        await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS embeddings_chunkId_idx ON embeddings("chunkId");`;
+        console.log('Embeddings table created successfully');
+      } else {
+        // Check if vector column exists and is the right type
+        const columnCheck = await prisma.$queryRaw`
+          SELECT data_type FROM information_schema.columns 
+          WHERE table_name = 'embeddings' AND column_name = 'vector';
+        `;
+        
+        const columnType = (columnCheck as any[])[0]?.data_type;
+        
+        if (columnType !== 'USER-DEFINED' || !columnType) {
+          console.log('Updating embeddings table to use vector type...');
+          // Drop the old column and recreate with vector type
+          await prisma.$executeRaw`ALTER TABLE embeddings DROP COLUMN IF EXISTS vector;`;
+          await prisma.$executeRaw`ALTER TABLE embeddings ADD COLUMN vector vector(1536);`;
+          console.log('Embeddings table updated to use vector type');
+        } else {
+          console.log('Embeddings table already has vector type');
+        }
+      }
+    } catch (pgvectorError: any) {
+      console.error('Error setting up pgvector:', pgvectorError);
+      // Continue anyway - might already be set up
+    }
+
     // Create demo company
     const company = await prisma.company.upsert({
       where: { name: 'TechCorp Demo' },
